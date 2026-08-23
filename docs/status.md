@@ -43,6 +43,6 @@ Not built yet: Postgres schema (`pak_laws`), MinIO bucket, Python ingest pipelin
 Each phase is implemented in a new session with no memory of prior sessions. Before ending a phase:
 
 1. Update the phase checklist above and add or edit that phase's section with what was actually built and any deviations from its plan doc.
-2. Commit and push.
+2. Leave the changes uncommitted for the user to review. **Do not commit or push automatically** — the user reviews the diff and explicitly asks for commit/push when ready.
 
-A new session starting a phase should: read `CLAUDE.md` (auto-loaded), read this file, read `docs/plan/00-overview.md` and that phase's `docs/plan/phase-N-*.md`, then run `git log --oneline` and `git status` to confirm the state described here still holds before writing code.
+A new session starting a phase should: read `CLAUDE.md` (auto-loaded), read this file, read `docs/plan/00-overview.md` and that phase's `docs/plan/phase-N-*.md`, then run `git log --oneline` and `git status` first — uncommitted changes may mean the previous phase's work is still awaiting review, not that it doesn't exist.
