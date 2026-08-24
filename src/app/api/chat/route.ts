@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  APICallError,
   convertToModelMessages,
   createUIMessageStream,
   createUIMessageStreamResponse,
@@ -32,6 +33,14 @@ interface ChatRequestBody {
 
 interface DocSummaryRow {
   summary: string | null;
+}
+
+// Flex tier (~50% cheaper) can reject a request with a 429 when OpenAI has
+// no spare capacity. Per OpenAI's guidance, that's the one case worth a
+// one-shot retry at standard pricing rather than backing off and trying
+// flex again: https://developers.openai.com/api/docs/guides/flex-processing
+function isFlexCapacityError(error: unknown): boolean {
+  return APICallError.isInstance(error) && error.statusCode === 429;
 }
 
 function getMessageText(message: UIMessage): string {
@@ -127,8 +136,35 @@ export async function POST(request: NextRequest) {
   const { contextBlock, citations } = buildContext(chunks);
   const modelMessages = await convertToModelMessages(messages);
 
+  const buildChatStream = (serviceTier: "flex" | "auto") =>
+    streamText({
+      model: openai(CHAT_MODEL),
+      system: buildSystemPrompt(contextBlock),
+      messages: modelMessages,
+      // Internal retries would just keep retrying flex; the fallback below
+      // handles retrying at standard pricing explicitly.
+      maxRetries: serviceTier === "flex" ? 0 : 2,
+      providerOptions: {
+        openai: { reasoningEffort: "medium", serviceTier },
+      },
+      onEnd: async ({ text, usage }) => {
+        const assistantId = await insertMessage(sessionId, "assistant", text, citations);
+        await recordUsage({
+          provider: "openai",
+          model: CHAT_MODEL,
+          operation: "chat",
+          sessionId,
+          messageId: assistantId,
+          inputTokens: usage.inputTokens ?? 0,
+          cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
+        });
+      },
+    });
+
   const stream = createUIMessageStream<QanoonUIMessage>({
-    execute: ({ writer }) => {
+    execute: async ({ writer }) => {
       // An explicit start part establishes the single message boundary up
       // front. Without it, the data parts below (written before streamText's
       // own implicit start) get treated as belonging to a separate message
@@ -141,28 +177,24 @@ export async function POST(request: NextRequest) {
       writer.write({ type: "data-citations", data: citations });
       writer.write({ type: "data-source", data: { kind: "generated" } });
 
-      const result = streamText({
-        model: openai(CHAT_MODEL),
-        system: buildSystemPrompt(contextBlock),
-        messages: modelMessages,
-        providerOptions: {
-          openai: { reasoningEffort: "medium" },
-        },
-        onEnd: async ({ text, usage }) => {
-          const assistantId = await insertMessage(sessionId, "assistant", text, citations);
-          await recordUsage({
-            provider: "openai",
-            model: CHAT_MODEL,
-            operation: "chat",
-            sessionId,
-            messageId: assistantId,
-            inputTokens: usage.inputTokens ?? 0,
-            cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-            outputTokens: usage.outputTokens ?? 0,
-            reasoningTokens: usage.outputTokenDetails?.reasoningTokens ?? 0,
-          });
-        },
-      });
+      let result = buildChatStream("flex");
+
+      // Peek at the leading parts on their own tee branch to detect an
+      // immediate capacity rejection before committing to it — `.stream`
+      // is re-teed off the untouched source on each access, so reading
+      // this branch doesn't consume anything from the branch merged below.
+      // A capacity rejection surfaces as a "start" part immediately
+      // followed by an "error" part, with nothing generated yet.
+      const peekReader = result.stream.getReader();
+      let peeked = await peekReader.read();
+      while (!peeked.done && peeked.value.type === "start") {
+        peeked = await peekReader.read();
+      }
+      await peekReader.cancel();
+
+      if (!peeked.done && peeked.value.type === "error" && isFlexCapacityError(peeked.value.error)) {
+        result = buildChatStream("auto");
+      }
 
       writer.merge(toUIMessageStream({ stream: result.stream, sendStart: false }));
     },
