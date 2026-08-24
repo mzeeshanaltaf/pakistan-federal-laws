@@ -7,8 +7,16 @@ import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "./message-content";
+import { TypingIndicator } from "./typing-indicator";
 import type { ChatScope, QanoonUIMessage } from "@/lib/chat-types";
 import type { Citation } from "@/lib/rag-prompt";
+
+function getMessageText(message: QanoonUIMessage): string {
+  return message.parts
+    .filter((p): p is { type: "text"; text: string } => p.type === "text")
+    .map((p) => p.text)
+    .join("");
+}
 
 export interface ChatThreadHandle {
   ask: (question: string) => void;
@@ -42,6 +50,13 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
 
   const [input, setInput] = useState("");
   const busy = status === "submitted" || status === "streaming";
+
+  // The assistant message often doesn't exist yet (or exists with no text
+  // part, e.g. while citations stream ahead of tokens) for a moment after
+  // submit — without an explicit indicator here the UI looks stuck.
+  const lastMessage = messages[messages.length - 1];
+  const showTypingIndicator =
+    busy && (!lastMessage || lastMessage.role === "user" || !getMessageText(lastMessage));
 
   function submit(text: string) {
     const trimmed = text.trim();
@@ -84,6 +99,8 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
             );
           }
 
+          if (!text) return null;
+
           return (
             <div key={message.id} className="max-w-[85%]">
               {source?.kind === "stored-summary" && (
@@ -92,17 +109,16 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
                   From the official summary
                 </div>
               )}
-              {text ? (
-                <MessageContent text={text} citations={citations} onOpenCitation={onOpenCitation} />
-              ) : (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-3.5 animate-spin" />
-                  Reading the statutes...
-                </div>
-              )}
+              <MessageContent text={text} citations={citations} onOpenCitation={onOpenCitation} />
             </div>
           );
         })}
+
+        {showTypingIndicator && (
+          <div className="max-w-[85%]">
+            <TypingIndicator />
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-destructive">Something went wrong answering that. Try asking again.</p>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ChevronDown, ExternalLink } from "lucide-react";
 import { getCategories } from "@/lib/catalog";
 import { MessageContent } from "@/components/chat/message-content";
 import type { Citation } from "@/lib/rag-prompt";
@@ -57,6 +57,55 @@ const EXAMPLE_CITATIONS: Citation[] = [
 ];
 
 const FEATURED_CITATION = EXAMPLE_CITATIONS[0];
+
+const STEPS = [
+  {
+    n: "01",
+    title: "Ask in plain language",
+    body: "Type a real question the way you'd ask a person. No need to already know which Act or section covers it.",
+  },
+  {
+    n: "02",
+    title: "Qanoon searches the statute text",
+    body: "Hybrid retrieval combines meaning-based search with exact keyword matching across all 525 laws, so a specific section name or term isn't missed.",
+  },
+  {
+    n: "03",
+    title: "Get an answer you can check",
+    body: "Every claim is tied to a citation that opens the exact page of the source PDF — so you never have to just take the answer's word for it.",
+  },
+];
+
+const FAQS = [
+  {
+    q: "Is this legal advice?",
+    a: "No. Qanoon explains what the statute text says in plain language — it isn't a substitute for a lawyer, and you should always verify against the cited source before relying on an answer.",
+  },
+  {
+    q: "Which laws are covered?",
+    a: "All 525 of Pakistan's federal statutes across 21 categories, sourced from pakistancode.gov.pk. Provincial laws, case law, and legal precedent aren't part of the corpus.",
+  },
+  {
+    q: "How current is the statute text?",
+    a: "Qanoon reads from the text published at pakistancode.gov.pk. Laws can be amended after that text was published, which is exactly why every answer links to the source page — check it before relying on the answer.",
+  },
+  {
+    q: "Do I need to sign up?",
+    a: "No. Qanoon is fully anonymous — there's no account, login, or email required to ask a question. See the Privacy Policy for how anonymous sessions work.",
+  },
+  {
+    q: "What happens if my question isn't covered by the statutes?",
+    a: "Qanoon says so plainly rather than guessing or padding an answer. If the retrieved statute text doesn't address your question, the response will tell you that directly.",
+  },
+  {
+    q: "Is Qanoon free?",
+    a: "Yes. It's a public civic tool — no cost, no paywall, no ads.",
+  },
+  {
+    q: "I found a wrong citation or a bug — how do I report it?",
+    a: "Use the Contact page. Every message is read.",
+  },
+];
 
 export default async function HomePage() {
   const categories = await getCategories();
@@ -124,6 +173,19 @@ export default async function HomePage() {
       </section>
 
       <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
+        <h2 className="text-xl font-semibold tracking-tight">How it works</h2>
+        <ol className="mt-8 grid gap-8 sm:grid-cols-3">
+          {STEPS.map((step) => (
+            <li key={step.n}>
+              <p className="font-mono text-sm text-primary">{step.n}</p>
+              <p className="mt-2 font-medium text-foreground">{step.title}</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
         <div className="mb-8 flex items-baseline justify-between gap-4">
           <h2 className="text-xl font-semibold tracking-tight">525 laws, 21 categories</h2>
           <Link href="/browse" className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
@@ -143,6 +205,45 @@ export default async function HomePage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="border-t border-border bg-secondary/40">
+        <div className="mx-auto w-full max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
+          <h2 className="text-xl font-semibold tracking-tight">Frequently asked questions</h2>
+          <div className="mt-6 divide-y divide-border">
+            {FAQS.map((faq) => (
+              <details key={faq.q} className="group py-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-medium text-foreground marker:content-none">
+                  {faq.q}
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+                </summary>
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">{faq.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-5xl px-4 py-14 text-center sm:px-6 sm:py-20">
+        <h2 className="text-xl font-semibold tracking-tight">Still have a question?</h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Ask Qanoon directly, or reach out if something looks wrong.
+        </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+          <Link
+            href="/ask"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Ask a question
+            <ArrowRight className="size-4" />
+          </Link>
+          <Link
+            href="/contact"
+            className="text-sm font-medium text-foreground/80 underline underline-offset-4 hover:text-foreground"
+          >
+            Contact us
+          </Link>
+        </div>
       </section>
     </div>
   );

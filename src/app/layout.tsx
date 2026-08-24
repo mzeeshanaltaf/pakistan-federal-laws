@@ -44,6 +44,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 >
                   Browse
                 </Link>
+                <Link
+                  href="/contact"
+                  className="rounded-md px-3 py-1.5 font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  Contact
+                </Link>
                 <ThemeToggle />
               </nav>
             </div>
@@ -52,18 +58,28 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main className="flex flex-1 flex-col">{children}</main>
 
           <footer className="border-t border-border">
-            <div className="mx-auto max-w-6xl px-4 py-6 text-xs leading-relaxed text-muted-foreground sm:px-6">
-              Qanoon answers are generated from statute text and are not legal advice. Always verify against
-              the cited source before relying on an answer. Sourced from{" "}
-              <a
-                href="https://pakistancode.gov.pk"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-2 hover:text-foreground"
-              >
-                pakistancode.gov.pk
-              </a>
-              .
+            <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground">
+                Qanoon answers are generated from statute text and are not legal advice. Always verify against
+                the cited source before relying on an answer. Sourced from{" "}
+                <a
+                  href="https://pakistancode.gov.pk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  pakistancode.gov.pk
+                </a>
+                .
+              </p>
+              <nav className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
+                <Link href="/contact" className="underline-offset-2 hover:text-foreground hover:underline">
+                  Contact
+                </Link>
+                <Link href="/privacy" className="underline-offset-2 hover:text-foreground hover:underline">
+                  Privacy Policy
+                </Link>
+              </nav>
             </div>
           </footer>
         </ThemeProvider>
