@@ -1,12 +1,14 @@
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ExternalLink } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { getCategories } from "@/lib/catalog";
-import { MessageContent } from "@/components/chat/message-content";
+import { LiveAnswerDemo } from "@/components/home/live-answer-demo";
 import type { Citation } from "@/lib/rag-prompt";
 
 export const revalidate = 3600;
 
 const EXAMPLE_QUESTION = "What notice period must a landlord give before evicting a tenant?";
+
+const EXAMPLE_REASONING = `The question asks about eviction notice generally. The retrieved sections cover two situations: section 17's general procedure through the Controller, and section 17A's specific two-month notice for a landlord who has died or is a retiring salaried employee. There's no single blanket period, so the answer needs to give the general rule and flag the specific one.`;
 
 const EXAMPLE_ANSWER = `The context does not specify a general notice period for every eviction. Under section 17, the landlord applies to the Controller, who must give the tenant a reasonable opportunity to show cause before ordering eviction. [2]
 
@@ -55,8 +57,6 @@ const EXAMPLE_CITATIONS: Citation[] = [
       "Provided that the benefit of exchange shall not be available to the tenant who refuses…",
   },
 ];
-
-const FEATURED_CITATION = EXAMPLE_CITATIONS[0];
 
 const STEPS = [
   {
@@ -142,39 +142,12 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-border bg-secondary/40">
-        <div className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
-          <p className="mb-6 text-sm font-medium text-muted-foreground">An actual answer, unedited</p>
-
-          <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
-              <div className="mb-5 flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-                  {EXAMPLE_QUESTION}
-                </div>
-              </div>
-              <MessageContent text={EXAMPLE_ANSWER} citations={EXAMPLE_CITATIONS} />
-            </div>
-
-            <div className="rounded-xl border border-border bg-card p-5">
-              <p className="text-xs font-medium text-muted-foreground">Citation [1]</p>
-              <p className="mt-1.5 text-sm font-semibold">{FEATURED_CITATION.documentTitle}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {FEATURED_CITATION.categoryName} &middot; p. {FEATURED_CITATION.pageStart}
-              </p>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{FEATURED_CITATION.snippet}</p>
-              <a
-                href={FEATURED_CITATION.sourceUrl ?? undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center gap-1.5 text-sm text-primary underline underline-offset-2"
-              >
-                View on pakistancode.gov.pk <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
+      <LiveAnswerDemo
+        question={EXAMPLE_QUESTION}
+        reasoning={EXAMPLE_REASONING}
+        answer={EXAMPLE_ANSWER}
+        citations={EXAMPLE_CITATIONS}
+      />
 
       <section className="mx-auto w-full max-w-5xl px-4 py-14 sm:px-6 sm:py-20">
         <h2 className="text-xl font-semibold tracking-tight">How it works</h2>
