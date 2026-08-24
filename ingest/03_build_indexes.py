@@ -33,14 +33,14 @@ def main():
             UPDATE pak_laws.categories c
             SET document_count = (
                 SELECT count(*) FROM pak_laws.documents d
-                WHERE d.category_id = c.id AND d.ingest_status = 'chunked'
+                WHERE d.category_id = c.id AND d.ingest_status IN ('chunked', 'summarized')
             )
             """
         )
 
         cur.execute("SELECT count(*) FROM pak_laws.document_chunks")
         chunk_count = cur.fetchone()[0]
-        cur.execute("SELECT count(*) FROM pak_laws.documents WHERE ingest_status = 'chunked'")
+        cur.execute("SELECT count(*) FROM pak_laws.documents WHERE ingest_status IN ('chunked', 'summarized')")
         doc_count = cur.fetchone()[0]
 
     print("---")
