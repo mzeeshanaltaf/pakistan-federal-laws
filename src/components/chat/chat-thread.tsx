@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "./message-content";
 import { TypingIndicator } from "./typing-indicator";
+import { getOrCreateLocalId } from "@/lib/anon-id";
 import type { ChatScope, QanoonUIMessage } from "@/lib/chat-types";
 import type { Citation } from "@/lib/rag-prompt";
 
@@ -28,13 +29,97 @@ interface ChatThreadProps {
   onOpenCitation: (citation: Citation) => void;
 }
 
+interface HistoryMessageRow {
+  id: number;
+  role: string;
+  content: string;
+  citations: Citation[] | null;
+}
+
+function rowToUIMessage(row: HistoryMessageRow): QanoonUIMessage {
+  const parts: QanoonUIMessage["parts"] = [];
+  if (row.role === "assistant") {
+    if (row.citations === null) {
+      // /api/chat only ever omits citations on insertMessage for the
+      // stored-summary shortcut — that's the one signal we have left to
+      // restore the "From the official summary" badge after a refresh.
+      parts.push({ type: "data-source", data: { kind: "stored-summary" } });
+    } else if (row.citations.length > 0) {
+      parts.push({ type: "data-citations", data: row.citations });
+    }
+  }
+  parts.push({ type: "text", text: row.content, state: "done" });
+  return {
+    id: String(row.id),
+    role: row.role === "user" ? "user" : "assistant",
+    parts,
+  };
+}
+
+/**
+ * Persists one session id per scope (localStorage) so a page refresh resumes
+ * the same conversation instead of starting a blank one. A scope change still
+ * gets a fresh session — ChatThread is remounted (keyed by scope) by AskApp.
+ * A freshly-created id has no history to fetch, so it skips the round trip
+ * (and the brief loading placeholder) entirely.
+ */
+function useRestoredSession(scope: ChatScope) {
+  const storageKey = `qanoon-session:${scope.type}:${scope.slug ?? "all"}`;
+  const [{ id: sessionId, isNew }] = useState(() => getOrCreateLocalId(storageKey));
+  const [initialMessages, setInitialMessages] = useState<QanoonUIMessage[] | null>(isNew ? [] : null);
+
+  useEffect(() => {
+    if (isNew) return;
+    let cancelled = false;
+    fetch(`/api/chat/history?sessionId=${sessionId}`)
+      .then((res) => res.json())
+      .then((data: { messages?: HistoryMessageRow[] }) => {
+        if (!cancelled) setInitialMessages((data.messages ?? []).map(rowToUIMessage));
+      })
+      .catch(() => {
+        if (!cancelled) setInitialMessages([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // sessionId/isNew are stable for this component's lifetime (one per scope mount).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { sessionId, initialMessages };
+}
+
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread(
   { anonId, scope, onOpenCitation },
   ref
 ) {
-  // Callers key this component by scope (see AskApp), so a scope change
-  // remounts it fresh with a new session rather than reusing one across topics.
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const { sessionId, initialMessages } = useRestoredSession(scope);
+
+  if (initialMessages === null) {
+    return <div className="flex-1" />;
+  }
+
+  return (
+    <ChatThreadReady
+      ref={ref}
+      anonId={anonId}
+      scope={scope}
+      sessionId={sessionId}
+      initialMessages={initialMessages}
+      onOpenCitation={onOpenCitation}
+    />
+  );
+});
+
+interface ChatThreadReadyProps extends ChatThreadProps {
+  sessionId: string;
+  initialMessages: QanoonUIMessage[];
+}
+
+const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(function ChatThreadReady(
+  { anonId, scope, sessionId, initialMessages, onOpenCitation },
+  ref
+) {
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
@@ -45,6 +130,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
 
   const { messages, sendMessage, status, error } = useChat<QanoonUIMessage>({
     id: sessionId,
+    messages: initialMessages,
     transport,
   });
 

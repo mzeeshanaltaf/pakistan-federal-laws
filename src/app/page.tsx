@@ -113,7 +113,11 @@ export default async function HomePage() {
   return (
     <div className="flex flex-1 flex-col">
       <section className="mx-auto w-full max-w-5xl px-4 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
-        <p className="mb-4 text-sm font-medium text-primary">Qanoon &middot; قانون</p>
+        <div className="mb-4 flex items-center gap-2.5">
+          {/* eslint-disable-next-line @next/next/no-img-element -- static local SVG, no optimization needed */}
+          <img src="/logo.svg" alt="" width={24} height={24} className="rounded-md" />
+          <p className="text-sm font-medium text-primary">Qanoon &middot; قانون</p>
+        </div>
         <h1 className="max-w-2xl text-4xl leading-[1.1] font-semibold tracking-tight text-balance sm:text-5xl">
           Ask Pakistan&apos;s federal statutes a question.
         </h1>

@@ -28,7 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           <header className="border-b border-border">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-              <Link href="/" className="text-lg font-semibold tracking-tight">
+              <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+                {/* eslint-disable-next-line @next/next/no-img-element -- static local SVG, no optimization needed */}
+                <img src="/logo.svg" alt="" width={28} height={28} className="rounded-md" />
                 Qanoon
               </Link>
               <nav className="flex items-center gap-1 text-sm">
