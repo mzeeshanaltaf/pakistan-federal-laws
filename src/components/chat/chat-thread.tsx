@@ -7,6 +7,7 @@ import { ArrowUp, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "./message-content";
+import { ReasoningBlock } from "./reasoning-block";
 import { TypingIndicator } from "./typing-indicator";
 import { getOrCreateLocalId } from "@/lib/anon-id";
 import type { ChatScope, QanoonUIMessage } from "@/lib/chat-types";
@@ -138,11 +139,16 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   const busy = status === "submitted" || status === "streaming";
 
   // The assistant message often doesn't exist yet (or exists with no text
-  // part, e.g. while citations stream ahead of tokens) for a moment after
-  // submit — without an explicit indicator here the UI looks stuck.
+  // and no reasoning part, e.g. while citations stream ahead of tokens) for
+  // a moment after submit — without an explicit indicator here the UI looks
+  // stuck. Once reasoning starts streaming, the reasoning block itself
+  // communicates progress, so the generic indicator steps aside.
   const lastMessage = messages[messages.length - 1];
+  const lastMessageHasReasoning =
+    !!lastMessage && lastMessage.role === "assistant" && lastMessage.parts.some((p) => p.type === "reasoning");
   const showTypingIndicator =
-    busy && (!lastMessage || lastMessage.role === "user" || !getMessageText(lastMessage));
+    busy &&
+    (!lastMessage || lastMessage.role === "user" || (!getMessageText(lastMessage) && !lastMessageHasReasoning));
 
   function submit(text: string) {
     const trimmed = text.trim();
@@ -174,6 +180,11 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
             .filter((p): p is { type: "text"; text: string } => p.type === "text")
             .map((p) => p.text)
             .join("");
+          const reasoningParts = message.parts.filter(
+            (p): p is { type: "reasoning"; text: string; state?: "streaming" | "done" } => p.type === "reasoning"
+          );
+          const reasoningText = reasoningParts.map((p) => p.text).join("");
+          const reasoningStreaming = reasoningParts.some((p) => p.state === "streaming");
 
           if (message.role === "user") {
             return (
@@ -185,17 +196,22 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
             );
           }
 
-          if (!text) return null;
+          if (!text && !reasoningText) return null;
 
           return (
             <div key={message.id} className="max-w-[85%]">
-              {source?.kind === "stored-summary" && (
-                <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
-                  <Sparkles className="size-3" />
-                  From the official summary
-                </div>
+              <ReasoningBlock text={reasoningText} streaming={reasoningStreaming} />
+              {text && (
+                <>
+                  {source?.kind === "stored-summary" && (
+                    <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
+                      <Sparkles className="size-3" />
+                      From the official summary
+                    </div>
+                  )}
+                  <MessageContent text={text} citations={citations} onOpenCitation={onOpenCitation} />
+                </>
               )}
-              <MessageContent text={text} citations={citations} onOpenCitation={onOpenCitation} />
             </div>
           );
         })}

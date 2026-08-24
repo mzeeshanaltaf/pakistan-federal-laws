@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
       // handles retrying at standard pricing explicitly.
       maxRetries: serviceTier === "flex" ? 0 : 2,
       providerOptions: {
-        openai: { reasoningEffort: "medium", serviceTier },
+        openai: { reasoningEffort: "medium", reasoningSummary: "auto", serviceTier },
       },
       onEnd: async ({ text, usage }) => {
         const assistantId = await insertMessage(sessionId, "assistant", text, citations);
