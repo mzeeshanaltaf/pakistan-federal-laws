@@ -20,6 +20,13 @@ function getMessageText(message: QanoonUIMessage): string {
     .join("");
 }
 
+function getMessageReasoningText(message: QanoonUIMessage): string {
+  return message.parts
+    .filter((p): p is { type: "reasoning"; text: string } => p.type === "reasoning")
+    .map((p) => p.text)
+    .join("");
+}
+
 export interface ChatThreadHandle {
   ask: (question: string) => void;
 }
@@ -138,14 +145,14 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   const [input, setInput] = useState("");
   const busy = status === "submitted" || status === "streaming";
 
-  // The assistant message often doesn't exist yet (or exists with no text
-  // and no reasoning part, e.g. while citations stream ahead of tokens) for
-  // a moment after submit — without an explicit indicator here the UI looks
-  // stuck. Once reasoning starts streaming, the reasoning block itself
+  // The assistant message often doesn't exist yet (or exists with no visible
+  // text or reasoning, e.g. while citations stream ahead of tokens, or while
+  // a reasoning part exists but hasn't received any text yet) for a moment
+  // after submit — without an explicit indicator here the UI looks stuck.
+  // Once reasoning text actually starts streaming, the reasoning block itself
   // communicates progress, so the generic indicator steps aside.
   const lastMessage = messages[messages.length - 1];
-  const lastMessageHasReasoning =
-    !!lastMessage && lastMessage.role === "assistant" && lastMessage.parts.some((p) => p.type === "reasoning");
+  const lastMessageHasReasoning = !!lastMessage && lastMessage.role === "assistant" && !!getMessageReasoningText(lastMessage);
   const showTypingIndicator =
     busy &&
     (!lastMessage || lastMessage.role === "user" || (!getMessageText(lastMessage) && !lastMessageHasReasoning));
