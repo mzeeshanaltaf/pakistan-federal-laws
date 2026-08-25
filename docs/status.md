@@ -13,6 +13,15 @@ Tracks what has actually been built, phase by phase, against the design in `docs
 | 4 | [phase-4-retrieval-chat-ui.md](plan/phase-4-retrieval-chat-ui.md) | ✅ Done |
 | 5 | [phase-5-deploy.md](plan/phase-5-deploy.md) | ✅ Done |
 | 6 | [phase-6-verification.md](plan/phase-6-verification.md) | ✅ Done |
+| 7 | [phase-7-auth-core.md](plan/phase-7-auth-core.md) | ⬜ Planned |
+| 8 | [phase-8-signin-signup-verification.md](plan/phase-8-signin-signup-verification.md) | ⬜ Planned |
+| 9 | [phase-9-forgot-reset-password.md](plan/phase-9-forgot-reset-password.md) | ⬜ Planned |
+| 10 | [phase-10-route-protection.md](plan/phase-10-route-protection.md) | ⬜ Planned |
+| 11 | [phase-11-message-reactions.md](plan/phase-11-message-reactions.md) | ⬜ Planned |
+| 12 | [phase-12-user-dashboard.md](plan/phase-12-user-dashboard.md) | ⬜ Planned |
+| 13 | [phase-13-admin-dashboard.md](plan/phase-13-admin-dashboard.md) | ⬜ Planned |
+
+Phases 7–13 (auth, reactions, dashboards) were planned in a session on 2026-08-25 but not yet implemented — see each phase doc for the detailed build plan, and `docs/plan/00-overview.md`'s "Phase 7+ amendments" section for the confirmed decisions behind them (chat gated behind sign-in to send messages, not to browse; Better Auth `admin` plugin seeded via `ADMIN_EMAILS`; no linking of old anonymous chat history to new accounts). `.env.local` already has `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `RESEND_API_KEY`, `RESEND_FROM_EMAIL` populated ahead of this work (see Environment section below) — `ADMIN_EMAILS` still needs to be added when Phase 7 starts.
 
 ## Repo
 
@@ -27,6 +36,7 @@ Tracks what has actually been built, phase by phase, against the design in `docs
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — set.
 - `S3_*` — set (Phase 1). `S3_ENDPOINT` is an **internal-only** hostname (`http://minio-<uuid>:9000`) reachable solely from containers on the VPS's shared `coolify` Docker network — it will NOT resolve from a local dev machine. Local `npm run dev` cannot fetch PDFs from MinIO until Qanoon itself is deployed onto that network in Phase 5. `S3_FORCE_PATH_STYLE=true` is required (MinIO serves buckets path-style).
 - `COOLIFY_API_TOKEN_ROOT` — a short-lived (7-day), root-scoped Coolify token the user added for one-time Phase 1 provisioning. Not read by the app; safe to delete once expired. `COOLIFY_API_TOKEN` (deploy-scoped) is reserved for Phase 5's GitHub Actions auto-deploy — the two were originally saved under the same key name in `.env.local` and have been disambiguated.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL`, `RESEND_API_KEY` / `RESEND_FROM_EMAIL` — set, provisioned ahead of Phase 7. Not yet consumed by any code (no `better-auth` package installed, no `src/lib/auth.ts` yet). Not yet in `.env.example`; add when Phase 7 lands, along with a new `ADMIN_EMAILS` var that doesn't exist yet.
 
 ## Phase 0 — Scaffold (done)
 

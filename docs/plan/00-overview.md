@@ -17,6 +17,13 @@ We are building **Qanoon**, a public web app that answers questions about these 
 | 4 | [phase-4-retrieval-chat-ui.md](phase-4-retrieval-chat-ui.md) | Retrieval, chat API, UI |
 | 5 | [phase-5-deploy.md](phase-5-deploy.md) | Coolify deploy |
 | 6 | [phase-6-verification.md](phase-6-verification.md) | Verification queries and checks |
+| 7 | [phase-7-auth-core.md](phase-7-auth-core.md) | Better Auth schema, Google OAuth, admin seeding |
+| 8 | [phase-8-signin-signup-verification.md](phase-8-signin-signup-verification.md) | Sign-in/up UI, session-aware header, email verification |
+| 9 | [phase-9-forgot-reset-password.md](phase-9-forgot-reset-password.md) | Forgot/reset password via Resend OTP |
+| 10 | [phase-10-route-protection.md](phase-10-route-protection.md) | Auth-gate chat, protect dashboard/admin routes |
+| 11 | [phase-11-message-reactions.md](phase-11-message-reactions.md) | Thumbs up/down, copy, bookmark on messages |
+| 12 | [phase-12-user-dashboard.md](phase-12-user-dashboard.md) | User dashboard + bookmark deep-link |
+| 13 | [phase-13-admin-dashboard.md](phase-13-admin-dashboard.md) | Admin dashboard, platform + per-user stats |
 
 ### Confirmed decisions
 
@@ -34,6 +41,20 @@ We are building **Qanoon**, a public web app that answers questions about these 
 | Answer policy | Strictly grounded — cite or decline. Persistent "not legal advice" disclaimer. |
 | Location | This folder becomes the app root. `docs/laws/` stays, gitignored; `docs/plan/` (phase plans) is tracked. |
 | Deploy | Coolify on `qanoon.zeeshanai.cloud`, GitHub Actions auto-deploy |
+
+### Phase 7+ amendments (auth, reactions, dashboards)
+
+Phases 0–6 (above) shipped the original "fully public, no login" design. Phases 7–13 layer accounts on top without reversing that: **`/ask` stays fully browsable while signed out** (scope picker, suggested questions, categories) — only *sending* a message requires sign-in. Confirmed decisions for this stage:
+
+| | |
+|---|---|
+| Auth | Better Auth — email/password (with email OTP verification, Resend-delivered) + Google OAuth. Tables land in the existing `pak_laws` schema, not a new database. |
+| Admin access | Better Auth's `admin` plugin, seeded by an `ADMIN_EMAILS` env var checked on user creation — not manual SQL promotion. |
+| Anonymous history | **Not** linked to new accounts. Old `anon_id`-based `chat_sessions` rows are left untouched; `chat_sessions.user_id` is a new, nullable column populated only for sessions created after a user signs in. |
+| Reactions | Thumbs up/down (mutually exclusive), copy, bookmark on assistant messages — new `message_reactions` table. |
+| Dashboards | User dashboard (own conversations/questions/tokens/bookmarks) and admin dashboard (platform + per-user totals including cost, reading the existing `usage_events` ledger) — the "dashboard is a later stage" decision from the original table, above, is what this is. |
+
+See `docs/plan/phase-7-auth-core.md` through `phase-13-admin-dashboard.md` for the detailed, file-by-file build plan.
 
 ### Relationship to `../DocGenie`
 
@@ -64,6 +85,9 @@ Load each at the phase where it applies rather than all up front.
 | 5 | `umami-analytics` | Optional — Umami already runs on the VPS |
 | 6 | `code-review`, `security-review` | Pre-deploy passes |
 | 6 | `seo-audit` | After the 525 `/law/[slug]` pages exist |
+| 7 | `better-auth-best-practices` | Server/client config, Google OAuth, admin plugin, schema adapter |
+| 7, 9 | `better-auth-email-otp` | OTP verification + forgot/reset password, Resend sender, UI screen patterns |
+| 7, 9 | `resend` | Resend SDK gotchas (quoted `from`, idempotency keys, domain verification) |
 
 ### Verified environment facts
 
