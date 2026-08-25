@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/auth/password-input";
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -125,10 +126,9 @@ export function ResetPasswordForm() {
             <label htmlFor="password" className="text-sm font-medium">
               New password
             </label>
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               required
               autoComplete="new-password"
               placeholder="••••••••"
@@ -142,10 +142,9 @@ export function ResetPasswordForm() {
             <label htmlFor="confirm" className="text-sm font-medium">
               Confirm new password
             </label>
-            <Input
+            <PasswordInput
               id="confirm"
               name="confirm"
-              type="password"
               required
               autoComplete="new-password"
               placeholder="••••••••"
