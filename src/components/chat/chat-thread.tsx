@@ -3,7 +3,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowUp, Loader2, Sparkles } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "./message-content";
@@ -128,6 +131,10 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   { anonId, scope, sessionId, initialMessages, onOpenCitation },
   ref
 ) {
+  const router = useRouter();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const signedIn = !sessionPending && !!session;
+
   const [transport] = useState(
     () =>
       new DefaultChatTransport({
@@ -165,7 +172,13 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   }
 
   useImperativeHandle(ref, () => ({
-    ask: (question: string) => submit(question),
+    ask: (question: string) => {
+      if (!signedIn) {
+        router.push("/sign-in");
+        return;
+      }
+      submit(question);
+    },
   }));
 
   return (
@@ -234,30 +247,39 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
         )}
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit(input);
-        }}
-        className="flex items-end gap-2 border-t border-border pt-4"
-      >
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit(input);
-            }
+      {signedIn ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(input);
           }}
-          placeholder={`Ask about ${scope.type === "all" ? "any federal law" : scope.label}...`}
-          rows={1}
-          className="max-h-40 min-h-11 flex-1 resize-none"
-        />
-        <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send question">
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
-        </Button>
-      </form>
+          className="flex items-end gap-2 border-t border-border pt-4"
+        >
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit(input);
+              }
+            }}
+            placeholder={`Ask about ${scope.type === "all" ? "any federal law" : scope.label}...`}
+            rows={1}
+            className="max-h-40 min-h-11 flex-1 resize-none"
+          />
+          <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send question">
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
+          </Button>
+        </form>
+      ) : (
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <p className="text-sm text-muted-foreground">Sign in to ask a question.</p>
+          <Button size="sm" nativeButton={false} render={<Link href="/sign-in" />}>
+            Sign in
+          </Button>
+        </div>
+      )}
     </div>
   );
 });

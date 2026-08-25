@@ -10,6 +10,7 @@ import {
   type UIMessage,
 } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { auth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { hybridSearch, resolveScope, type ScopeType } from "@/lib/retrieval";
@@ -53,13 +54,14 @@ function getMessageText(message: UIMessage): string {
 async function ensureSession(
   sessionId: string,
   anonId: string,
+  userId: string,
   scope: { type: ScopeType; slug?: string }
 ): Promise<void> {
   await query(
-    `INSERT INTO chat_sessions (id, anon_id, scope_type, scope_id)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO chat_sessions (id, anon_id, user_id, scope_type, scope_id)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
-    [sessionId, anonId, scope.type, scope.slug ?? null]
+    [sessionId, anonId, userId, scope.type, scope.slug ?? null]
   );
 }
 
@@ -77,6 +79,12 @@ async function insertMessage(
 }
 
 export async function POST(request: NextRequest) {
+  // The real security boundary — the client-side disabled input is UX only.
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
   const { success } = await checkRateLimit(ip);
   if (!success) {
@@ -91,7 +99,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Empty question" }, { status: 400 });
   }
 
-  await ensureSession(sessionId, anonId, scope);
+  await ensureSession(sessionId, anonId, session.user.id, scope);
   await insertMessage(sessionId, "user", questionText);
 
   // --- Stored-summary shortcut: no embedding, no retrieval, no LLM call ---
