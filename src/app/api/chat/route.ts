@@ -60,7 +60,9 @@ async function ensureSession(
   await query(
     `INSERT INTO chat_sessions (id, anon_id, user_id, scope_type, scope_id)
      VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
+     ON CONFLICT (id) DO UPDATE SET
+       updated_at = now(),
+       user_id = COALESCE(chat_sessions.user_id, EXCLUDED.user_id)`,
     [sessionId, anonId, userId, scope.type, scope.slug ?? null]
   );
 }

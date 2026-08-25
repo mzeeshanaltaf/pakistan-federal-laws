@@ -9,7 +9,11 @@ export type QanoonUIMessage = UIMessage<
   {
     citations: Citation[];
     source: { kind: "stored-summary" | "generated" };
-    "message-id": number;
+    // node-postgres returns bigint/bigserial columns (chat_messages.id) as
+    // strings, not numbers, so the assistantId written into this part at
+    // runtime is actually a numeric string despite chat_messages.id being a
+    // bigint — accept both.
+    "message-id": number | string;
   }
 >;
 

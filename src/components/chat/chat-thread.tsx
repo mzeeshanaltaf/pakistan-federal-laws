@@ -31,8 +31,11 @@ function getMessageText(message: QanoonUIMessage): string {
  */
 function resolveDbMessageId(message: QanoonUIMessage): number | null {
   const idPart = message.parts.find((p) => p.type === "data-message-id");
-  const fromPart = (idPart as { data?: number } | undefined)?.data;
-  if (typeof fromPart === "number") return fromPart;
+  const fromPart = (idPart as { data?: number | string } | undefined)?.data;
+  if (fromPart !== undefined) {
+    const n = Number(fromPart);
+    if (Number.isFinite(n)) return n;
+  }
   const fromId = Number(message.id);
   return Number.isFinite(fromId) ? fromId : null;
 }
