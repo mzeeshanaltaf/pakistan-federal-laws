@@ -10,6 +10,7 @@ import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MessageContent } from "./message-content";
+import { MessageActions, type ReactionType } from "./message-actions";
 import { ReasoningBlock } from "./reasoning-block";
 import { TypingIndicator } from "./typing-indicator";
 import { getOrCreateLocalId } from "@/lib/anon-id";
@@ -21,6 +22,19 @@ function getMessageText(message: QanoonUIMessage): string {
     .filter((p): p is { type: "text"; text: string } => p.type === "text")
     .map((p) => p.text)
     .join("");
+}
+
+/**
+ * Reads the data-message-id part first (live messages, written by the API
+ * before streaming starts), falling back to Number(message.id) for
+ * history-restored messages — rowToUIMessage sets id: String(row.id).
+ */
+function resolveDbMessageId(message: QanoonUIMessage): number | null {
+  const idPart = message.parts.find((p) => p.type === "data-message-id");
+  const fromPart = (idPart as { data?: number } | undefined)?.data;
+  if (typeof fromPart === "number") return fromPart;
+  const fromId = Number(message.id);
+  return Number.isFinite(fromId) ? fromId : null;
 }
 
 function getMessageReasoningText(message: QanoonUIMessage): string {
@@ -78,6 +92,7 @@ function useRestoredSession(scope: ChatScope) {
   const storageKey = `qanoon-session:${scope.type}:${scope.slug ?? "all"}`;
   const [{ id: sessionId, isNew }] = useState(() => getOrCreateLocalId(storageKey));
   const [initialMessages, setInitialMessages] = useState<QanoonUIMessage[] | null>(isNew ? [] : null);
+  const [initialReactions, setInitialReactions] = useState<Record<number, ReactionType[]>>({});
 
   useEffect(() => {
     if (isNew) return;
@@ -85,10 +100,22 @@ function useRestoredSession(scope: ChatScope) {
     fetch(`/api/chat/history?sessionId=${sessionId}`)
       .then((res) => res.json())
       .then((data: { messages?: HistoryMessageRow[] }) => {
-        if (!cancelled) setInitialMessages((data.messages ?? []).map(rowToUIMessage));
+        if (!cancelled) {
+          const rows = (data.messages ?? []).filter((row) => !(row.role === "assistant" && row.content === ""));
+          setInitialMessages(rows.map(rowToUIMessage));
+        }
       })
       .catch(() => {
         if (!cancelled) setInitialMessages([]);
+      });
+    fetch(`/api/chat/reactions?sessionId=${sessionId}`)
+      .then((res) => res.json())
+      .then((data: { reactions?: Record<number, ReactionType[]> }) => {
+        if (!cancelled) setInitialReactions(data.reactions ?? {});
+      })
+      .catch(() => {
+        // Reaction icons just start unset — non-critical, and MessageActions
+        // still works from a clean state.
       });
     return () => {
       cancelled = true;
@@ -97,14 +124,14 @@ function useRestoredSession(scope: ChatScope) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { sessionId, initialMessages };
+  return { sessionId, initialMessages, initialReactions };
 }
 
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread(
   { anonId, scope, onOpenCitation },
   ref
 ) {
-  const { sessionId, initialMessages } = useRestoredSession(scope);
+  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope);
 
   if (initialMessages === null) {
     return <div className="flex-1" />;
@@ -117,6 +144,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       scope={scope}
       sessionId={sessionId}
       initialMessages={initialMessages}
+      initialReactions={initialReactions}
       onOpenCitation={onOpenCitation}
     />
   );
@@ -125,10 +153,11 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
 interface ChatThreadReadyProps extends ChatThreadProps {
   sessionId: string;
   initialMessages: QanoonUIMessage[];
+  initialReactions: Record<number, ReactionType[]>;
 }
 
 const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(function ChatThreadReady(
-  { anonId, scope, sessionId, initialMessages, onOpenCitation },
+  { anonId, scope, sessionId, initialMessages, initialReactions, onOpenCitation },
   ref
 ) {
   const router = useRouter();
@@ -150,6 +179,7 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   });
 
   const [input, setInput] = useState("");
+  const [reactions, setReactions] = useState<Record<number, ReactionType[]>>(initialReactions);
   const busy = status === "submitted" || status === "streaming";
 
   // The assistant message often doesn't exist yet (or exists with no visible
@@ -218,6 +248,8 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
 
           if (!text && !reasoningText) return null;
 
+          const dbMessageId = resolveDbMessageId(message);
+
           return (
             <div key={message.id} className="max-w-[85%]">
               <ReasoningBlock text={reasoningText} streaming={reasoningStreaming} />
@@ -230,6 +262,16 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
                     </div>
                   )}
                   <MessageContent text={text} citations={citations} onOpenCitation={onOpenCitation} />
+                  {dbMessageId !== null && (
+                    <MessageActions
+                      messageId={dbMessageId}
+                      text={text}
+                      reactions={reactions[dbMessageId] ?? []}
+                      onReactionsChange={(next) =>
+                        setReactions((prev) => ({ ...prev, [dbMessageId]: next }))
+                      }
+                    />
+                  )}
                 </>
               )}
             </div>

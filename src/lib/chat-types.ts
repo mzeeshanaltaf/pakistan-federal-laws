@@ -9,6 +9,7 @@ export type QanoonUIMessage = UIMessage<
   {
     citations: Citation[];
     source: { kind: "stored-summary" | "generated" };
+    "message-id": number;
   }
 >;
 

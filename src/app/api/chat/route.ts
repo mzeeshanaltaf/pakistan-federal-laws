@@ -78,6 +78,10 @@ async function insertMessage(
   return rows[0].id;
 }
 
+async function updateMessageContent(id: number, content: string): Promise<void> {
+  await query(`UPDATE chat_messages SET content = $1 WHERE id = $2`, [content, id]);
+}
+
 export async function POST(request: NextRequest) {
   // The real security boundary — the client-side disabled input is UX only.
   const session = await auth.api.getSession({ headers: request.headers });
@@ -108,12 +112,13 @@ export async function POST(request: NextRequest) {
     const summary = docs[0]?.summary;
 
     if (summary) {
-      await insertMessage(sessionId, "assistant", summary);
+      const assistantId = await insertMessage(sessionId, "assistant", summary);
 
       const stream = createUIMessageStream<QanoonUIMessage>({
         execute: ({ writer }) => {
           writer.write({ type: "start" });
           writer.write({ type: "data-source", data: { kind: "stored-summary" } });
+          writer.write({ type: "data-message-id", data: assistantId });
           writer.write({ type: "text-start", id: "summary" });
           writer.write({ type: "text-delta", id: "summary", delta: summary });
           writer.write({ type: "text-end", id: "summary" });
@@ -142,6 +147,12 @@ export async function POST(request: NextRequest) {
 
   const chunks = await hybridSearch(questionText, embedding, scopeFilter);
   const { contextBlock, citations } = buildContext(chunks);
+  // Inserted before streaming (not in onEnd) so the client gets the real
+  // bigint id via a data-message-id part almost immediately — reactions
+  // need it, and a live-streamed message's useChat id never matches
+  // chat_messages.id otherwise. A failed generation leaves this row's
+  // content empty (orphaned debris, filtered out of history reads).
+  const assistantId = await insertMessage(sessionId, "assistant", "", citations);
   const modelMessages = await convertToModelMessages(messages);
 
   const buildChatStream = (serviceTier: "flex" | "auto") =>
@@ -156,7 +167,7 @@ export async function POST(request: NextRequest) {
         openai: { reasoningEffort: "medium", reasoningSummary: "auto", serviceTier },
       },
       onEnd: async ({ text, usage }) => {
-        const assistantId = await insertMessage(sessionId, "assistant", text, citations);
+        await updateMessageContent(assistantId, text);
         await recordUsage({
           provider: "openai",
           model: CHAT_MODEL,
@@ -184,6 +195,7 @@ export async function POST(request: NextRequest) {
       // tokens are still streaming in.
       writer.write({ type: "data-citations", data: citations });
       writer.write({ type: "data-source", data: { kind: "generated" } });
+      writer.write({ type: "data-message-id", data: assistantId });
 
       let result = buildChatStream("flex");
 
