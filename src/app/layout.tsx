@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
 import Link from "next/link";
+import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { SiteHeader } from "@/components/site-header";
 
 const publicSans = Public_Sans({
   variable: "--font-sans",
@@ -26,36 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${publicSans.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
-          <header className="border-b border-border">
-            <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-              <Link href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-                {/* eslint-disable-next-line @next/next/no-img-element -- static local SVG, no optimization needed */}
-                <img src="/logo.svg" alt="" width={28} height={28} className="rounded-md" />
-                Qanoon
-              </Link>
-              <nav className="flex items-center gap-1 text-sm">
-                <Link
-                  href="/ask"
-                  className="rounded-md px-3 py-1.5 font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  Ask
-                </Link>
-                <Link
-                  href="/browse"
-                  className="rounded-md px-3 py-1.5 font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  Browse
-                </Link>
-                <Link
-                  href="/contact"
-                  className="rounded-md px-3 py-1.5 font-medium text-foreground/80 transition-colors hover:bg-accent hover:text-accent-foreground"
-                >
-                  Contact
-                </Link>
-                <ThemeToggle />
-              </nav>
-            </div>
-          </header>
+          <SiteHeader />
 
           <main className="flex flex-1 flex-col">{children}</main>
 
@@ -84,6 +56,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </nav>
             </div>
           </footer>
+
+          <Toaster richColors position="top-center" />
         </ThemeProvider>
       </body>
     </html>
