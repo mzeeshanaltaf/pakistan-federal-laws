@@ -18,15 +18,20 @@ const DEFAULT_SCOPE: ChatScope = { type: "all", label: "All laws" };
 
 interface AskAppProps {
   initialScope?: ChatScope;
+  initialSessionId?: string;
 }
 
-export function AskApp({ initialScope }: AskAppProps) {
+export function AskApp({ initialScope, initialSessionId }: AskAppProps) {
   const [anonId] = useState(() => getOrCreateAnonId());
   const [scope, setScope] = useState<ChatScope>(initialScope ?? DEFAULT_SCOPE);
   const [catalog, setCatalog] = useState<CatalogResponse>({ categories: [], documents: [] });
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const chatRef = useRef<ChatThreadHandle>(null);
   const scopeKey = `${scope.type}:${scope.slug ?? ""}`;
+  // initialSessionId is only valid for the scope the deep link named — once
+  // the user changes scope via the selector, stop threading it through so a
+  // freshly-picked scope doesn't inherit a session id from a different one.
+  const [sessionIdActive, setSessionIdActive] = useState(!!initialSessionId);
 
   useEffect(() => {
     fetch("/api/catalog")
@@ -42,7 +47,10 @@ export function AskApp({ initialScope }: AskAppProps) {
           categories={catalog.categories}
           documents={catalog.documents}
           scope={scope}
-          onScopeChange={setScope}
+          onScopeChange={(next) => {
+            setScope(next);
+            setSessionIdActive(false);
+          }}
         />
         <SuggestedQuestions key={scopeKey} scope={scope} onSelect={(q) => chatRef.current?.ask(q)} />
       </div>
@@ -54,6 +62,7 @@ export function AskApp({ initialScope }: AskAppProps) {
             ref={chatRef}
             anonId={anonId}
             scope={scope}
+            initialSessionId={sessionIdActive ? initialSessionId : undefined}
             onOpenCitation={setActiveCitation}
           />
         </div>

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 };
 
 interface AskPageProps {
-  searchParams: Promise<{ scope?: string; slug?: string; label?: string }>;
+  searchParams: Promise<{ scope?: string; slug?: string; label?: string; sessionId?: string }>;
 }
 
 export default async function AskPage({ searchParams }: AskPageProps) {
@@ -21,5 +21,5 @@ export default async function AskPage({ searchParams }: AskPageProps) {
     initialScope = { type: "category", slug: params.slug, label: params.label ?? params.slug };
   }
 
-  return <AskAppLoader initialScope={initialScope} />;
+  return <AskAppLoader initialScope={initialScope} initialSessionId={params.sessionId} />;
 }

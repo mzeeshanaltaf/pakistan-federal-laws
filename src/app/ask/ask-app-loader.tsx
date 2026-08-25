@@ -16,6 +16,12 @@ const AskApp = dynamic(() => import("./ask-app").then((m) => ({ default: m.AskAp
   ),
 });
 
-export function AskAppLoader({ initialScope }: { initialScope?: ChatScope }) {
-  return <AskApp initialScope={initialScope} />;
+export function AskAppLoader({
+  initialScope,
+  initialSessionId,
+}: {
+  initialScope?: ChatScope;
+  initialSessionId?: string;
+}) {
+  return <AskApp initialScope={initialScope} initialSessionId={initialSessionId} />;
 }

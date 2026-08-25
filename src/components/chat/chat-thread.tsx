@@ -51,6 +51,7 @@ export interface ChatThreadHandle {
 interface ChatThreadProps {
   anonId: string;
   scope: ChatScope;
+  initialSessionId?: string;
   onOpenCitation: (citation: Citation) => void;
 }
 
@@ -88,9 +89,11 @@ function rowToUIMessage(row: HistoryMessageRow): QanoonUIMessage {
  * A freshly-created id has no history to fetch, so it skips the round trip
  * (and the brief loading placeholder) entirely.
  */
-function useRestoredSession(scope: ChatScope) {
+function useRestoredSession(scope: ChatScope, initialSessionId?: string) {
   const storageKey = `qanoon-session:${scope.type}:${scope.slug ?? "all"}`;
-  const [{ id: sessionId, isNew }] = useState(() => getOrCreateLocalId(storageKey));
+  const [{ id: sessionId, isNew }] = useState(() =>
+    initialSessionId ? { id: initialSessionId, isNew: false } : getOrCreateLocalId(storageKey)
+  );
   const [initialMessages, setInitialMessages] = useState<QanoonUIMessage[] | null>(isNew ? [] : null);
   const [initialReactions, setInitialReactions] = useState<Record<number, ReactionType[]>>({});
 
@@ -128,10 +131,10 @@ function useRestoredSession(scope: ChatScope) {
 }
 
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread(
-  { anonId, scope, onOpenCitation },
+  { anonId, scope, initialSessionId, onOpenCitation },
   ref
 ) {
-  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope);
+  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId);
 
   if (initialMessages === null) {
     return <div className="flex-1" />;
