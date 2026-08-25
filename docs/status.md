@@ -13,7 +13,7 @@ Tracks what has actually been built, phase by phase, against the design in `docs
 | 4 | [phase-4-retrieval-chat-ui.md](plan/phase-4-retrieval-chat-ui.md) | ✅ Done |
 | 5 | [phase-5-deploy.md](plan/phase-5-deploy.md) | ✅ Done |
 | 6 | [phase-6-verification.md](plan/phase-6-verification.md) | ✅ Done |
-| 7 | [phase-7-auth-core.md](plan/phase-7-auth-core.md) | ⬜ Planned |
+| 7 | [phase-7-auth-core.md](plan/phase-7-auth-core.md) | ✅ Done |
 | 8 | [phase-8-signin-signup-verification.md](plan/phase-8-signin-signup-verification.md) | ⬜ Planned |
 | 9 | [phase-9-forgot-reset-password.md](plan/phase-9-forgot-reset-password.md) | ⬜ Planned |
 | 10 | [phase-10-route-protection.md](plan/phase-10-route-protection.md) | ⬜ Planned |
@@ -36,7 +36,8 @@ Phases 7–13 (auth, reactions, dashboards) were planned in a session on 2026-08
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — set.
 - `S3_*` — set (Phase 1). `S3_ENDPOINT` is an **internal-only** hostname (`http://minio-<uuid>:9000`) reachable solely from containers on the VPS's shared `coolify` Docker network — it will NOT resolve from a local dev machine. Local `npm run dev` cannot fetch PDFs from MinIO until Qanoon itself is deployed onto that network in Phase 5. `S3_FORCE_PATH_STYLE=true` is required (MinIO serves buckets path-style).
 - `COOLIFY_API_TOKEN_ROOT` — a short-lived (7-day), root-scoped Coolify token the user added for one-time Phase 1 provisioning. Not read by the app; safe to delete once expired. `COOLIFY_API_TOKEN` (deploy-scoped) is reserved for Phase 5's GitHub Actions auto-deploy — the two were originally saved under the same key name in `.env.local` and have been disambiguated.
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL`, `RESEND_API_KEY` / `RESEND_FROM_EMAIL` — set, provisioned ahead of Phase 7. Not yet consumed by any code (no `better-auth` package installed, no `src/lib/auth.ts` yet). Not yet in `.env.example`; add when Phase 7 lands, along with a new `ADMIN_EMAILS` var that doesn't exist yet.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL`, `RESEND_API_KEY` / `RESEND_FROM_EMAIL` — set, consumed by `src/lib/auth.ts` as of Phase 7. In `.env.example`.
+- `ADMIN_EMAILS` — set in Phase 7 to `zeeshan.altaf@gmail.com` (the project owner's address). Comma-separated; checked case-insensitively in `src/lib/auth.ts`'s `databaseHooks.user.create.before`. In `.env.example`.
 
 ## Phase 0 — Scaffold (done)
 
@@ -160,6 +161,18 @@ Ran every check in the plan doc against the live VPS Postgres, the local dev ser
 **Build:** `npx tsc --noEmit` clean, `npm run build` (Turbopack) and `npx next build --webpack` both clean, all 562 routes generated on both paths. Confirmed the deployed `qanoon.zeeshanai.cloud` serves a real PDF through the MinIO proxy over HTTPS (`GET /api/documents/arms-act-1878/file` → `200`, `Content-Type: application/pdf`, `Content-Length: 276710`).
 
 **Not re-verified this phase (already covered in Phase 5, no reason to expect drift):** `qanoon.zeeshanai.cloud`'s Let's Encrypt cert and the GitHub Actions auto-deploy workflow.
+
+## Phase 7 — Auth core: Better Auth, schema, Google OAuth, admin seeding (done)
+
+Built exactly per the plan doc: `src/lib/auth.ts`, `src/lib/auth-client.ts`, `src/app/api/auth/[...all]/route.ts` (`toNextJsHandler`), `src/lib/email.ts` (Resend, defensive quote-stripping on `RESEND_FROM_EMAIL`), `scripts/apply-sql.ts`, `db/schema-app.sql`. `.env.example` and `.env.local` both updated with the six Better Auth/Resend vars plus `ADMIN_EMAILS=zeeshan.altaf@gmail.com`.
+
+- **Real bug found and fixed — the phase's flagged "genuinely unverified assumption" partially held, partially didn't.** `npx @better-auth/cli@latest migrate` correctly created `user`/`session`/`account`/`verification` inside `pak_laws` (not `public`) — the schema-*location* risk the plan doc worried about was a non-issue, confirmed via `information_schema.tables`. But a **different, unflagged** version-skew problem surfaced: `@better-auth/cli@latest` resolves to CLI package version `1.4.21`, which bundles its own copy of the `better-auth` core (also `1.4.21`) to generate migration SQL — independent of this project's installed `better-auth@1.7.1`. The core account schema gained a `NOT NULL issuer` column (plus a unique `(issuer, accountId)` index) between those versions, for OIDC/account-linking dedup — used on *every* account row, including plain email/password sign-ups, not just OAuth. The CLI's migration never created it, so `POST /api/auth/sign-up/email` 500'd with `column "issuer" of relation "account" does not exist`.
+  - Confirmed no other drift: diffed `node_modules/@better-auth/core/dist/db/get-tables.mjs`'s full field list for `user`/`session`/`verification` against `information_schema.columns` — those three matched the CLI's output exactly, only `account` was short one column.
+  - Fixed with a manual, idempotent `ALTER TABLE ... ADD COLUMN IF NOT EXISTS issuer text NOT NULL DEFAULT ''` immediately followed by `DROP DEFAULT` (table was empty, so no backfill needed; better-auth always supplies `issuer` on insert) plus the missing unique index, added to `db/schema-app.sql` with a comment flagging it as a CLI/package version-skew gotcha to re-check on every future `better-auth` upgrade.
+  - No newer `@better-auth/cli` version bundling a closer-to-1.7.1 core exists on npm as of this phase (checked `latest`/`beta`/`next`/`canary` dist-tags — `beta` reaches core `1.5.0-beta.13`, still behind; `next`/`canary` are far *older*, `0.8.x`/`1.0.0-canary.14`). Re-running `migrate` after a future `better-auth` upgrade should not be trusted blindly — always diff `get-tables.mjs`'s field list against `information_schema.columns` afterward.
+- **Verification, all passed:** `information_schema.tables` schema-location check; `user` table has `role`/`banned`/`banReason`/`banExpires`; `db/schema-app.sql` re-run twice is a no-op; a throwaway `POST /api/auth/sign-up/email` with the `ADMIN_EMAILS`-listed address returned `"role":"admin"` in the response body (checked directly, no separate `SELECT` needed) — throwaway user then deleted (`DELETE FROM "user" WHERE email = ...`, cascades to its `account` row). `npx tsc --noEmit`, `npm run lint` both clean.
+- Tested against an **already-running dev server** on port 3000 (owned by the user, predating this session) rather than starting a new one — port 3001 was already occupied by a stray prior attempt too; killed neither, just reused the live one on 3000 since it picked up the new route file via Turbopack HMR.
+- Google OAuth callback itself (`socialProviders.google`) and the `emailOTP` send path were wired per the plan doc but not exercised end-to-end here — no UI to click through yet (that's Phase 8), and a real OTP send would burn a real Resend email for no verification value at this stage.
 
 ## Session handoff
 
