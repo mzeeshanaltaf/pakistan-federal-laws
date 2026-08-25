@@ -15,7 +15,7 @@ Tracks what has actually been built, phase by phase, against the design in `docs
 | 6 | [phase-6-verification.md](plan/phase-6-verification.md) | ✅ Done |
 | 7 | [phase-7-auth-core.md](plan/phase-7-auth-core.md) | ✅ Done |
 | 8 | [phase-8-signin-signup-verification.md](plan/phase-8-signin-signup-verification.md) | ✅ Done |
-| 9 | [phase-9-forgot-reset-password.md](plan/phase-9-forgot-reset-password.md) | ⬜ Planned |
+| 9 | [phase-9-forgot-reset-password.md](plan/phase-9-forgot-reset-password.md) | ✅ Done |
 | 10 | [phase-10-route-protection.md](plan/phase-10-route-protection.md) | ⬜ Planned |
 | 11 | [phase-11-message-reactions.md](plan/phase-11-message-reactions.md) | ⬜ Planned |
 | 12 | [phase-12-user-dashboard.md](plan/phase-12-user-dashboard.md) | ⬜ Planned |
@@ -186,6 +186,18 @@ Built exactly per the plan doc: `src/components/auth/{sign-in-form,sign-up-form,
 - All 5 throwaway `@example.com` test accounts created during this verification pass were deleted from `"user"` afterward (matching Phase 7's throwaway-user cleanup precedent).
 - **Not verified by this session, needs the user** (real inbox/Google account required, an agent can't complete these): sign-up with a real address you control receiving an actual code and flipping `emailVerified` to `true`; completing Google OAuth end-to-end and confirming the signed-in header's Popover shows the user's name/email, a Dashboard link, and — signing in with the `ADMIN_EMAILS` address (`zeeshan.altaf@gmail.com`) — an Admin link. The underlying `role==="admin"` conditional was confirmed correct by code inspection and Phase 7's DB-level test, just not re-clicked through in a live signed-in session here.
 - `npx tsc --noEmit`, `npm run lint`, `npm run build` (Turbopack), and `npx next build --webpack` all clean; `/sign-in`, `/sign-up`, `/verify-email` all statically generate on both build paths.
+
+## Phase 9 — Forgot / reset password (done)
+
+Built per the plan doc, with one structural deviation from the `better-auth-email-otp` skill it names: `src/app/forgot-password/page.tsx` + `src/components/auth/forgot-password-form.tsx` (email input → `authClient.emailOtp.requestPasswordReset`) and `src/app/reset-password/page.tsx` + `src/components/auth/reset-password-form.tsx` (OTP + new-password + confirm-password → `authClient.emailOtp.resetPassword`). Also added the "Forgot password?" link next to the password label in `sign-in-form.tsx`, deliberately deferred from Phase 8.
+
+- **Deviation from the skill's reference pattern:** the skill's `references/ui-screens.md` models forgot/reset as *one* route with an internal `step: "request" | "reset"` state. The plan doc (this project's actual spec) calls for **two separate pages/routes** instead — followed the plan doc, since it's authoritative over the skill's generic reference. `/reset-password` carries the email via a `?email=` query param (mirroring `/verify-email`'s existing pattern from Phase 8), and redirects back to `/forgot-password` client-side if that param is missing.
+- Reused Phase 8's exact patterns: the `useCooldown` hook (duplicated per-file rather than extracted to a shared module — Phase 8 didn't extract it either, kept consistent), the OTP `Input` styling, the `OTP_EXPIRED`/`INVALID_OTP`/`TOO_MANY_ATTEMPTS` error-code-to-message map, and the spam-folder note block (same sender address, `noreply@verification.zeeshanai.cloud`).
+- "Resend code" on `/reset-password` calls `requestPasswordReset` again (there's no separate resend endpoint for the `forget-password` OTP type — confirmed by reading `better-auth`'s `email-otp` plugin source, `node_modules/better-auth/dist/plugins/email-otp/routes.mjs`) — same anti-enumeration `{success:true}` behavior applies to resend, so its toast is phrased the same neutral way as the initial request.
+- `/forgot-password` has no `robots` override (indexable, same as `/sign-in`/`/sign-up`); `/reset-password` is `robots: { index: false, follow: false }` and wraps its form in `<Suspense>`, matching `/verify-email`'s precedent (both need `useSearchParams()`).
+- **Verified via a temporary Playwright browser pass** (npx, never added to `package.json`/lock — confirmed clean after, same pattern as Phases 4–8) against the already-running dev server on port 3000: `/sign-in`'s new "Forgot password?" link → `/forgot-password`; submitting a made-up address shows the neutral success toast and redirects to `/reset-password?email=...` (no enumeration leak, no console errors/warnings); client-side validation (mismatched passwords, <8-char password) fires with zero network calls; a bogus 6-digit OTP against the fake email correctly 400s as `INVALID_OTP` with the mapped toast and a cleared field; "Resend code" disables with a live countdown; direct navigation to `/reset-password` with no `?email=` redirects to `/forgot-password`.
+- **Not verified this phase, needs the user** (real inbox required): forgot-password with a real address actually receiving a code, resetting successfully, being redirected to `/sign-in`, and confirming the **old password is rejected** while the new one works. Per the plan doc, this also can't be simulated with a fake address — the anti-enumeration behavior means a fake address never sends mail, by design, not by bug.
+- `npx tsc --noEmit`, `npm run lint`, `npm run build` (Turbopack), and `npx next build --webpack` all clean; `/forgot-password` and `/reset-password` both statically generate on both build paths.
 
 ## Session handoff
 
