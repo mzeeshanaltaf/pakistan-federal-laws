@@ -23,5 +23,11 @@ export function AskAppLoader({
   initialScope?: ChatScope;
   initialSessionId?: string;
 }) {
-  return <AskApp initialScope={initialScope} initialSessionId={initialSessionId} />;
+  // AskApp seeds its scope/session state from these props only on mount, so a
+  // client-side navigation to a new sidebar/dashboard deep link (same route,
+  // new search params) would otherwise leave the already-mounted instance
+  // showing stale content even though the URL changed. Keying by the deep
+  // link's identity forces a fresh mount whenever it changes.
+  const key = `${initialSessionId ?? "none"}:${initialScope?.type ?? "all"}:${initialScope?.slug ?? ""}`;
+  return <AskApp key={key} initialScope={initialScope} initialSessionId={initialSessionId} />;
 }
