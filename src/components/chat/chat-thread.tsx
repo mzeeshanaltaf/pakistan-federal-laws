@@ -98,7 +98,7 @@ function useRestoredSession(scope: ChatScope, initialSessionId?: string) {
     initialSessionId ? { id: initialSessionId, isNew: false } : getOrCreateLocalId(storageKey)
   );
   const [initialMessages, setInitialMessages] = useState<QanoonUIMessage[] | null>(isNew ? [] : null);
-  const [initialReactions, setInitialReactions] = useState<Record<number, ReactionType[]>>({});
+  const [initialReactions, setInitialReactions] = useState<Record<number, ReactionType[]> | null>(isNew ? {} : null);
 
   useEffect(() => {
     if (isNew) return;
@@ -122,6 +122,7 @@ function useRestoredSession(scope: ChatScope, initialSessionId?: string) {
       .catch(() => {
         // Reaction icons just start unset — non-critical, and MessageActions
         // still works from a clean state.
+        if (!cancelled) setInitialReactions({});
       });
     return () => {
       cancelled = true;
@@ -139,7 +140,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
 ) {
   const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId);
 
-  if (initialMessages === null) {
+  if (initialMessages === null || initialReactions === null) {
     return <div className="flex-1" />;
   }
 

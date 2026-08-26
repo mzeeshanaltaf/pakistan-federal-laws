@@ -5,6 +5,7 @@ import { ScopeSelector, type CatalogCategory, type CatalogDocument } from "@/com
 import { SuggestedQuestions } from "@/components/chat/suggested-questions";
 import { ChatThread, type ChatThreadHandle } from "@/components/chat/chat-thread";
 import { CitationPanel } from "@/components/chat/citation-panel";
+import { ChatHistorySidebar } from "@/components/chat/chat-history-sidebar";
 import { getOrCreateAnonId } from "@/lib/anon-id";
 import type { ChatScope } from "@/lib/chat-types";
 import type { Citation } from "@/lib/rag-prompt";
@@ -56,6 +57,8 @@ export function AskApp({ initialScope, initialSessionId }: AskAppProps) {
       </div>
 
       <div className="flex flex-1 gap-6">
+        <ChatHistorySidebar activeSessionId={sessionIdActive ? initialSessionId : undefined} />
+
         <div className="flex flex-1 flex-col overflow-hidden">
           <ChatThread
             key={scopeKey}
