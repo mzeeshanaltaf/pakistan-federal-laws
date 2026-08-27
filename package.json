@@ -13,6 +13,8 @@
     "@ai-sdk/react": "^4.0.80",
     "@aws-sdk/client-s3": "^3.1116.0",
     "@base-ui/react": "^1.7.0",
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.3",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.38.2",
     "ai": "^7.0.77",

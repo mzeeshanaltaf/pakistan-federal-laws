@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/auth/password-input";
+import { AvatarPickerDialog } from "@/components/profile/avatar-picker-dialog";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -165,17 +166,25 @@ export function ProfileForm({ name, email, image }: ProfileFormProps) {
               className="hidden"
               onChange={handleAvatarChange}
             />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={uploadingAvatar}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : null}
-              {uploadingAvatar ? "Uploading…" : "Change picture"}
-            </Button>
-            <p className="mt-1.5 text-xs text-muted-foreground">JPEG, PNG, or WebP. Max 2MB.</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploadingAvatar}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploadingAvatar ? <Loader2 className="size-4 animate-spin" /> : null}
+                {uploadingAvatar ? "Uploading…" : "Change picture"}
+              </Button>
+              <AvatarPickerDialog
+                onSelected={(url) => {
+                  setAvatarUrl(url);
+                  router.refresh();
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">JPEG, PNG, or WebP. Max 2MB, or pick an avatar.</p>
           </div>
         </div>
 
