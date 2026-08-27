@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { UserStats } from "@/lib/admin-queries";
 
-type SortKey = "name" | "conversations" | "messages" | "totalTokens" | "totalCostUsd";
+type SortKey = "name" | "messageCredits" | "conversations" | "messages" | "totalTokens" | "totalCostUsd";
 
 const COLUMNS: { key: SortKey; label: string; align: "left" | "right" }[] = [
   { key: "name", label: "User", align: "left" },
+  { key: "messageCredits", label: "Credits left", align: "right" },
   { key: "conversations", label: "Conversations", align: "right" },
   { key: "messages", label: "Messages", align: "right" },
   { key: "totalTokens", label: "Tokens", align: "right" },
@@ -90,6 +91,9 @@ export function AdminUserTable({ users }: { users: UserStats[] }) {
               <td className="px-4 py-3">
                 <div className="font-medium text-foreground">{user.name ?? user.email}</div>
                 {user.name ? <div className="text-xs text-muted-foreground">{user.email}</div> : null}
+              </td>
+              <td className="px-4 py-3 text-right tabular-nums">
+                {user.role === "admin" ? "Unlimited" : user.messageCredits}
               </td>
               <td className="px-4 py-3 text-right tabular-nums">{user.conversations}</td>
               <td className="px-4 py-3 text-right tabular-nums">{user.messages}</td>

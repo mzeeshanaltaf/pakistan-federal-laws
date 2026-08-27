@@ -7,6 +7,7 @@ import { ShieldBan, ShieldCheck } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -28,6 +29,27 @@ export function AdminUserProfile({ user, viewerIsSelf }: { user: AdminUserDetail
   const [banReason, setBanReason] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [creditsInput, setCreditsInput] = useState(String(user.messageCredits));
+  const [creditsPending, setCreditsPending] = useState(false);
+
+  async function adjustCredits(newValue: number) {
+    if (!Number.isInteger(newValue) || newValue < 0) return;
+    setCreditsPending(true);
+    const res = await fetch(`/api/admin/users/${user.id}/credits`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credits: newValue }),
+    });
+    setCreditsPending(false);
+    if (!res.ok) {
+      toast.error("Couldn't update message credits.");
+      return;
+    }
+    const data = (await res.json()) as { messageCredits: number };
+    setCreditsInput(String(data.messageCredits));
+    toast.success("Message credits updated.");
+    router.refresh();
+  }
 
   async function confirmBan() {
     setPending(true);
@@ -102,6 +124,50 @@ export function AdminUserProfile({ user, viewerIsSelf }: { user: AdminUserDetail
           <p className="mt-0.5 text-foreground">{user.banReason}</p>
         </div>
       )}
+
+      <div className="border-t border-border pt-6">
+        <p className="text-sm font-medium text-foreground">Message credits</p>
+        {user.role === "admin" ? (
+          <p className="mt-1 text-sm text-muted-foreground">Admins have no message limit.</p>
+        ) : (
+          <div className="mt-2 flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={creditsPending}
+              onClick={() => adjustCredits(Math.max(0, user.messageCredits - 10))}
+            >
+              −10
+            </Button>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={creditsInput}
+              onChange={(e) => setCreditsInput(e.target.value)}
+              className="w-24"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={creditsPending}
+              onClick={() => adjustCredits(user.messageCredits + 10)}
+            >
+              +10
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={creditsPending}
+              onClick={() => adjustCredits(Number(creditsInput))}
+            >
+              Save
+            </Button>
+          </div>
+        )}
+      </div>
 
       <div className="border-t border-border pt-6">
         {viewerIsSelf ? (

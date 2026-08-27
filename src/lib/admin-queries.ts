@@ -53,6 +53,8 @@ export interface UserStats {
   id: string;
   name: string | null;
   email: string;
+  role: string | null;
+  messageCredits: number;
   conversations: number;
   messages: number;
   totalTokens: number;
@@ -63,6 +65,8 @@ interface UserStatsRow {
   id: string;
   name: string | null;
   email: string;
+  role: string | null;
+  messageCredits: number;
   conversations: string;
   messages: string;
   total_tokens: string;
@@ -84,7 +88,7 @@ export async function getPerUserStats(): Promise<UserStats[]> {
   // applied here.
   const rows = await query<UserStatsRow>(
     `SELECT
-       u.id, u.name, u.email,
+       u.id, u.name, u.email, u.role, u."messageCredits",
        COALESCE(convo.conversations, 0)  AS conversations,
        COALESCE(msg.messages, 0)         AS messages,
        COALESCE(usage.total_tokens, 0)   AS total_tokens,
@@ -118,6 +122,8 @@ export async function getPerUserStats(): Promise<UserStats[]> {
     id: row.id,
     name: row.name,
     email: row.email,
+    role: row.role,
+    messageCredits: Number(row.messageCredits),
     conversations: Number(row.conversations),
     messages: Number(row.messages),
     totalTokens: Number(row.total_tokens),

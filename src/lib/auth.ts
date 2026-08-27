@@ -18,6 +18,14 @@ export const auth = betterAuth({
     },
   },
   emailVerification: { sendOnSignIn: true, autoSignInAfterVerification: true },
+  user: {
+    additionalFields: {
+      // input: false — clients can't set this on sign-up; only the admin
+      // credits route (application code) and the chat route's decrement
+      // ever write it after creation.
+      messageCredits: { type: "number", input: false, defaultValue: 10 },
+    },
+  },
   plugins: [
     emailOTP({
       overrideDefaultEmailVerification: true,

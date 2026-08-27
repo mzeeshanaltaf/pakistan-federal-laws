@@ -7,6 +7,7 @@ export interface AdminUserDetail {
   email: string;
   image: string | null;
   role: string | null;
+  messageCredits: number;
   banned: boolean;
   banReason: string | null;
   banExpires: string | null;
@@ -20,6 +21,7 @@ interface UserDetailRow {
   email: string;
   image: string | null;
   role: string | null;
+  messageCredits: number;
   banned: boolean | null;
   banReason: string | null;
   banExpires: string | null;
@@ -29,7 +31,7 @@ interface UserDetailRow {
 
 export async function getAdminUserDetail(userId: string): Promise<AdminUserDetail | null> {
   const rows = await query<UserDetailRow>(
-    `SELECT id, name, email, image, role, banned, "banReason", "banExpires", "emailVerified", "createdAt"
+    `SELECT id, name, email, image, role, "messageCredits", banned, "banReason", "banExpires", "emailVerified", "createdAt"
      FROM "user" WHERE id = $1`,
     [userId]
   );
@@ -41,6 +43,7 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
     email: row.email,
     image: row.image,
     role: row.role,
+    messageCredits: Number(row.messageCredits),
     banned: row.banned ?? false,
     banReason: row.banReason,
     banExpires: row.banExpires,

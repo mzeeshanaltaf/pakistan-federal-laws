@@ -161,6 +161,8 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       initialSessionId={initialSessionId}
       userId={session?.user.id}
       signedIn={!!session}
+      isAdmin={session?.user.role === "admin"}
+      initialCredits={session?.user.messageCredits ?? null}
       onOpenCitation={onOpenCitation}
     />
   );
@@ -169,10 +171,12 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
 interface ChatThreadRestoringProps extends ChatThreadProps {
   userId?: string;
   signedIn: boolean;
+  isAdmin: boolean;
+  initialCredits: number | null;
 }
 
 const ChatThreadRestoring = forwardRef<ChatThreadHandle, ChatThreadRestoringProps>(function ChatThreadRestoring(
-  { anonId, scope, initialSessionId, userId, signedIn, onOpenCitation },
+  { anonId, scope, initialSessionId, userId, signedIn, isAdmin, initialCredits, onOpenCitation },
   ref
 ) {
   const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId, userId);
@@ -190,6 +194,8 @@ const ChatThreadRestoring = forwardRef<ChatThreadHandle, ChatThreadRestoringProp
       initialMessages={initialMessages}
       initialReactions={initialReactions}
       signedIn={signedIn}
+      isAdmin={isAdmin}
+      initialCredits={initialCredits}
       onOpenCitation={onOpenCitation}
     />
   );
@@ -200,10 +206,12 @@ interface ChatThreadReadyProps extends ChatThreadProps {
   initialMessages: QanoonUIMessage[];
   initialReactions: Record<number, ReactionType[]>;
   signedIn: boolean;
+  isAdmin: boolean;
+  initialCredits: number | null;
 }
 
 const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(function ChatThreadReady(
-  { anonId, scope, sessionId, initialMessages, initialReactions, signedIn, onOpenCitation },
+  { anonId, scope, sessionId, initialMessages, initialReactions, signedIn, isAdmin, initialCredits, onOpenCitation },
   ref
 ) {
   const router = useRouter();
@@ -216,15 +224,21 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
       })
   );
 
+  const [creditsRemaining, setCreditsRemaining] = useState(initialCredits);
+
   const { messages, sendMessage, status, error } = useChat<QanoonUIMessage>({
     id: sessionId,
     messages: initialMessages,
     transport,
+    onData: (part) => {
+      if (part.type === "data-credits-remaining") setCreditsRemaining(part.data);
+    },
   });
 
   const [input, setInput] = useState("");
   const [reactions, setReactions] = useState<Record<number, ReactionType[]>>(initialReactions);
   const busy = status === "submitted" || status === "streaming";
+  const outOfCredits = !isAdmin && creditsRemaining !== null && creditsRemaining <= 0;
 
   // The assistant message often doesn't exist yet (or exists with no visible
   // text or reasoning, e.g. while citations stream ahead of tokens, or while
@@ -240,7 +254,7 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
 
   function submit(text: string) {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || outOfCredits) return;
     sendMessage({ text: trimmed });
     setInput("");
   }
@@ -333,30 +347,43 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
         )}
       </div>
 
-      {signedIn ? (
+      {signedIn && outOfCredits ? (
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
+          <p className="text-sm text-muted-foreground">
+            You&apos;ve used all your message credits. Contact the administrator for more.
+          </p>
+        </div>
+      ) : signedIn ? (
         <form
           onSubmit={(e) => {
             e.preventDefault();
             submit(input);
           }}
-          className="flex items-end gap-2 border-t border-border pt-4"
+          className="border-t border-border pt-4"
         >
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                submit(input);
-              }
-            }}
-            placeholder={`Ask about ${scope.type === "all" ? "any federal law" : scope.label}...`}
-            rows={1}
-            className="max-h-40 min-h-11 flex-1 resize-none"
-          />
-          <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send question">
-            {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
-          </Button>
+          <div className="flex items-end gap-2">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit(input);
+                }
+              }}
+              placeholder={`Ask about ${scope.type === "all" ? "any federal law" : scope.label}...`}
+              rows={1}
+              className="max-h-40 min-h-11 flex-1 resize-none"
+            />
+            <Button type="submit" size="icon" disabled={busy || !input.trim()} aria-label="Send question">
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
+            </Button>
+          </div>
+          {!isAdmin && creditsRemaining !== null && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {creditsRemaining} message{creditsRemaining === 1 ? "" : "s"} remaining
+            </p>
+          )}
         </form>
       ) : (
         <div className="flex items-center justify-between gap-3 border-t border-border pt-4">

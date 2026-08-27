@@ -24,6 +24,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS account_issuer_account_id_idx ON pak_laws.acco
 ALTER TABLE pak_laws.chat_sessions ADD COLUMN IF NOT EXISTS user_id text REFERENCES pak_laws."user" (id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS chat_sessions_user_id_idx ON pak_laws.chat_sessions (user_id);
 
+-- Every signed-up user starts with 10 message credits (set via auth.ts's
+-- additionalFields defaultValue on new sign-ups); admins bypass the limit
+-- entirely in application code (src/app/api/chat/route.ts), so this column
+-- is meaningless for admin rows.
+ALTER TABLE pak_laws."user" ADD COLUMN IF NOT EXISTS "messageCredits" integer NOT NULL DEFAULT 10;
+
 CREATE TABLE IF NOT EXISTS pak_laws.message_reactions (
     id            bigserial PRIMARY KEY,
     message_id    bigint NOT NULL REFERENCES pak_laws.chat_messages (id) ON DELETE CASCADE,

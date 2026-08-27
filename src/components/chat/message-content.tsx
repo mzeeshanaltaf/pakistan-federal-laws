@@ -18,15 +18,30 @@ const CITATION_RE = /\[(\d+)\]/g;
 export function MessageContent({ text, citations, onOpenCitation }: MessageContentProps) {
   const citationMap = new Map(citations.map((c) => [c.n, c]));
 
+  // Citation.n reflects retrieval rank (relevance order), not the order the
+  // model actually references sources in its prose — so raw markers can read
+  // [5], [2], [7]... in the finished answer. Renumber by first-appearance
+  // order in the text instead, so the reader sees 1, 2, 3... A repeated
+  // marker for the same underlying citation keeps the same display number.
+  const displayNumberByOriginal = new Map<number, number>();
+  for (const match of text.matchAll(CITATION_RE)) {
+    const n = Number(match[1]);
+    if (citationMap.has(n) && !displayNumberByOriginal.has(n)) {
+      displayNumberByOriginal.set(n, displayNumberByOriginal.size + 1);
+    }
+  }
+
   // Rewrite bare [n] markers into markdown links on a fragment href so
   // ReactMarkdown's `a` renderer can intercept them and swap in a pill —
   // simpler and more robust than a custom remark AST transform. A custom URI
   // scheme (e.g. "qanoon-citation:5") gets silently stripped to href="" by
   // react-markdown's URL sanitizer; a "#..." fragment is always allowed
-  // through.
+  // through. The href keeps the original n (a stable, unique lookup key into
+  // citationMap); only the visible link text is the renumbered display value.
   const processed = text.replace(CITATION_RE, (match, num) => {
     const n = Number(num);
-    return citationMap.has(n) ? `[${n}](#qanoon-citation-${n})` : match;
+    const displayN = displayNumberByOriginal.get(n);
+    return displayN !== undefined ? `[${displayN}](#qanoon-citation-${n})` : match;
   });
 
   return (
@@ -43,8 +58,9 @@ export function MessageContent({ text, citations, onOpenCitation }: MessageConte
             if (href?.startsWith("#qanoon-citation-")) {
               const n = Number(href.replace("#qanoon-citation-", ""));
               const citation = citationMap.get(n);
-              if (citation) {
-                return <CitationPill n={n} onClick={() => onOpenCitation?.(citation)} />;
+              const displayN = displayNumberByOriginal.get(n);
+              if (citation && displayN !== undefined) {
+                return <CitationPill n={displayN} onClick={() => onOpenCitation?.(citation)} />;
               }
             }
             return (

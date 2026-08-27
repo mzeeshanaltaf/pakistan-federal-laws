@@ -14,6 +14,8 @@ export type QanoonUIMessage = UIMessage<
     // runtime is actually a numeric string despite chat_messages.id being a
     // bigint — accept both.
     "message-id": number | string;
+    // Only streamed for non-admin senders — admins have no credit limit.
+    "credits-remaining": number;
   }
 >;
 

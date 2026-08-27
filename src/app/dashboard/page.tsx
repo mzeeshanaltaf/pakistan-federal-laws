@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Bookmark, MessageSquare, Sparkles } from "lucide-react";
+import { Bookmark, MessageSquare, Sparkles, Ticket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getBookmarkedMessages, getDashboardStats, type BookmarkedMessage } from "@/lib/dashboard-queries";
 
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
       <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
       <p className="mt-3 text-muted-foreground">Signed in as {session.user.email}.</p>
 
-      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 text-muted-foreground">
             <MessageSquare className="size-4" />
@@ -67,6 +67,15 @@ export default async function DashboardPage() {
             <span className="text-sm">Total tokens</span>
           </div>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.totalTokens.toLocaleString()}</p>
+        </div>
+        <div className="rounded-xl border border-border p-5">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Ticket className="size-4" />
+            <span className="text-sm">Messages remaining</span>
+          </div>
+          <p className="mt-2 text-2xl font-semibold tabular-nums">
+            {session.user.role === "admin" ? "Unlimited" : session.user.messageCredits}
+          </p>
         </div>
       </div>
 

@@ -24,6 +24,10 @@ export const runtime = "nodejs";
 
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL ?? "gpt-5.6-luna";
 const EMBED_MODEL = process.env.OPENAI_EMBED_MODEL ?? "text-embedding-3-small";
+// Only the most recent turns are sent to the model as conversation context —
+// older turns stay in chat_messages/history for display but aren't replayed
+// into every future request (cost + the model drifting on stale context).
+const MAX_CONTEXT_MESSAGES = 5;
 
 interface ChatRequestBody {
   messages: QanoonUIMessage[];
@@ -98,6 +102,19 @@ async function updateMessageContent(id: number, content: string): Promise<void> 
   await query(`UPDATE chat_messages SET content = $1 WHERE id = $2`, [content, id]);
 }
 
+// Atomic decrement guarded by the WHERE clause — returns the new balance, or
+// null if the user had none left (nothing was updated). Admins are never
+// passed to this function; they have no credit limit.
+async function consumeMessageCredit(userId: string): Promise<number | null> {
+  const rows = await query<{ messageCredits: number }>(
+    `UPDATE "user" SET "messageCredits" = "messageCredits" - 1
+     WHERE id = $1 AND "messageCredits" > 0
+     RETURNING "messageCredits"`,
+    [userId]
+  );
+  return rows[0] ? rows[0].messageCredits : null;
+}
+
 export async function POST(request: NextRequest) {
   // The real security boundary — the client-side disabled input is UX only.
   const session = await auth.api.getSession({ headers: request.headers });
@@ -127,6 +144,18 @@ export async function POST(request: NextRequest) {
     }
     throw error;
   }
+
+  // Admins have no message limit; every other signed-in user spends one
+  // credit per question, checked and decremented atomically so concurrent
+  // requests can't both slip through on the last credit.
+  let creditsRemaining: number | null = null;
+  if (session.user.role !== "admin") {
+    creditsRemaining = await consumeMessageCredit(session.user.id);
+    if (creditsRemaining === null) {
+      return NextResponse.json({ error: "No message credits remaining" }, { status: 403 });
+    }
+  }
+
   await insertMessage(sessionId, "user", questionText);
 
   // --- Stored-summary shortcut: no embedding, no retrieval, no LLM call ---
@@ -142,6 +171,9 @@ export async function POST(request: NextRequest) {
           writer.write({ type: "start" });
           writer.write({ type: "data-source", data: { kind: "stored-summary" } });
           writer.write({ type: "data-message-id", data: assistantId });
+          if (creditsRemaining !== null) {
+            writer.write({ type: "data-credits-remaining", data: creditsRemaining });
+          }
           writer.write({ type: "text-start", id: "summary" });
           writer.write({ type: "text-delta", id: "summary", delta: summary });
           writer.write({ type: "text-end", id: "summary" });
@@ -176,7 +208,7 @@ export async function POST(request: NextRequest) {
   // chat_messages.id otherwise. A failed generation leaves this row's
   // content empty (orphaned debris, filtered out of history reads).
   const assistantId = await insertMessage(sessionId, "assistant", "", citations);
-  const modelMessages = await convertToModelMessages(messages);
+  const modelMessages = await convertToModelMessages(messages.slice(-MAX_CONTEXT_MESSAGES));
 
   const buildChatStream = (serviceTier: "flex" | "auto") =>
     streamText({
@@ -219,6 +251,9 @@ export async function POST(request: NextRequest) {
       writer.write({ type: "data-citations", data: citations });
       writer.write({ type: "data-source", data: { kind: "generated" } });
       writer.write({ type: "data-message-id", data: assistantId });
+      if (creditsRemaining !== null) {
+        writer.write({ type: "data-credits-remaining", data: creditsRemaining });
+      }
 
       let result = buildChatStream("flex");
 
