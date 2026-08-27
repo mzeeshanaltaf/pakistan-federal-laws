@@ -6,6 +6,7 @@ import { CreditCard, FileText, MessageSquare, MessagesSquare, Users } from "luci
 import { auth } from "@/lib/auth";
 import { getPerUserStats, getPlatformTotals } from "@/lib/admin-queries";
 import { AdminUserTable } from "@/components/admin/admin-user-table";
+import { AdminBulkCredits } from "@/components/admin/admin-bulk-credits";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -74,7 +75,10 @@ export default async function AdminPage() {
         </div>
       </div>
 
-      <h2 className="mt-14 text-xl font-semibold tracking-tight">Users</h2>
+      <div className="mt-14 flex items-center justify-between gap-4">
+        <h2 className="text-xl font-semibold tracking-tight">Users</h2>
+        <AdminBulkCredits nonAdminUserCount={users.filter((u) => u.role !== "admin").length} />
+      </div>
       <div className="mt-6">
         <AdminUserTable users={users} />
       </div>

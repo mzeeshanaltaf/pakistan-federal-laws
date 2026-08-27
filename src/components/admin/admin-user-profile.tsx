@@ -130,42 +130,56 @@ export function AdminUserProfile({ user, viewerIsSelf }: { user: AdminUserDetail
         {user.role === "admin" ? (
           <p className="mt-1 text-sm text-muted-foreground">Admins have no message limit.</p>
         ) : (
-          <div className="mt-2 flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={creditsPending}
-              onClick={() => adjustCredits(Math.max(0, user.messageCredits - 10))}
-            >
-              −10
-            </Button>
-            <Input
-              type="number"
-              min={0}
-              step={1}
-              value={creditsInput}
-              onChange={(e) => setCreditsInput(e.target.value)}
-              className="w-24"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={creditsPending}
-              onClick={() => adjustCredits(user.messageCredits + 10)}
-            >
-              +10
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={creditsPending}
-              onClick={() => adjustCredits(Number(creditsInput))}
-            >
-              Save
-            </Button>
-          </div>
+          <>
+            <div className="mt-2 flex items-end gap-2">
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={creditsPending}
+                  onClick={() => adjustCredits(Math.max(0, user.messageCredits - 10))}
+                >
+                  −10
+                </Button>
+                <span className="text-[11px] text-muted-foreground">Decrease by 10</span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={creditsInput}
+                  onChange={(e) => setCreditsInput(e.target.value)}
+                  className="w-24"
+                />
+                <span className="text-[11px] text-muted-foreground">Messages remaining</span>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={creditsPending}
+                  onClick={() => adjustCredits(user.messageCredits + 10)}
+                >
+                  +10
+                </Button>
+                <span className="text-[11px] text-muted-foreground">Increase by 10</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                disabled={creditsPending}
+                onClick={() => adjustCredits(Number(creditsInput))}
+              >
+                Save
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              −10 / +10 adjust and save immediately. Editing the number and clicking Save sets an exact value instead.
+            </p>
+          </>
         )}
       </div>
 
