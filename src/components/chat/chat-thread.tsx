@@ -47,6 +47,19 @@ function getMessageReasoningText(message: QanoonUIMessage): string {
     .join("");
 }
 
+function formatMessageTimestamp(iso: string): string {
+  const date = new Date(iso);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  const datePart = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: sameYear ? undefined : "numeric",
+  });
+  const timePart = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${datePart} at ${timePart}`;
+}
+
 export interface ChatThreadHandle {
   ask: (question: string) => void;
 }
@@ -63,6 +76,7 @@ interface HistoryMessageRow {
   role: string;
   content: string;
   citations: Citation[] | null;
+  created_at: string;
 }
 
 function rowToUIMessage(row: HistoryMessageRow): QanoonUIMessage {
@@ -105,6 +119,7 @@ function useRestoredSession(scope: ChatScope, initialSessionId: string | undefin
   );
   const [initialMessages, setInitialMessages] = useState<QanoonUIMessage[] | null>(isNew ? [] : null);
   const [initialReactions, setInitialReactions] = useState<Record<number, ReactionType[]> | null>(isNew ? {} : null);
+  const [initialTimestamps, setInitialTimestamps] = useState<Record<string, string> | null>(isNew ? {} : null);
 
   useEffect(() => {
     if (isNew) return;
@@ -115,10 +130,14 @@ function useRestoredSession(scope: ChatScope, initialSessionId: string | undefin
         if (!cancelled) {
           const rows = (data.messages ?? []).filter((row) => !(row.role === "assistant" && row.content === ""));
           setInitialMessages(rows.map(rowToUIMessage));
+          setInitialTimestamps(Object.fromEntries(rows.map((row) => [String(row.id), row.created_at])));
         }
       })
       .catch(() => {
-        if (!cancelled) setInitialMessages([]);
+        if (!cancelled) {
+          setInitialMessages([]);
+          setInitialTimestamps({});
+        }
       });
     fetch(`/api/chat/reactions?sessionId=${sessionId}`)
       .then((res) => res.json())
@@ -137,7 +156,7 @@ function useRestoredSession(scope: ChatScope, initialSessionId: string | undefin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { sessionId, initialMessages, initialReactions };
+  return { sessionId, initialMessages, initialReactions, initialTimestamps };
 }
 
 export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function ChatThread(
@@ -179,9 +198,13 @@ const ChatThreadRestoring = forwardRef<ChatThreadHandle, ChatThreadRestoringProp
   { anonId, scope, initialSessionId, userId, signedIn, isAdmin, initialCredits, onOpenCitation },
   ref
 ) {
-  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId, userId);
+  const { sessionId, initialMessages, initialReactions, initialTimestamps } = useRestoredSession(
+    scope,
+    initialSessionId,
+    userId
+  );
 
-  if (initialMessages === null || initialReactions === null) {
+  if (initialMessages === null || initialReactions === null || initialTimestamps === null) {
     return <div className="flex-1" />;
   }
 
@@ -193,6 +216,7 @@ const ChatThreadRestoring = forwardRef<ChatThreadHandle, ChatThreadRestoringProp
       sessionId={sessionId}
       initialMessages={initialMessages}
       initialReactions={initialReactions}
+      initialTimestamps={initialTimestamps}
       signedIn={signedIn}
       isAdmin={isAdmin}
       initialCredits={initialCredits}
@@ -205,13 +229,25 @@ interface ChatThreadReadyProps extends ChatThreadProps {
   sessionId: string;
   initialMessages: QanoonUIMessage[];
   initialReactions: Record<number, ReactionType[]>;
+  initialTimestamps: Record<string, string>;
   signedIn: boolean;
   isAdmin: boolean;
   initialCredits: number | null;
 }
 
 const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(function ChatThreadReady(
-  { anonId, scope, sessionId, initialMessages, initialReactions, signedIn, isAdmin, initialCredits, onOpenCitation },
+  {
+    anonId,
+    scope,
+    sessionId,
+    initialMessages,
+    initialReactions,
+    initialTimestamps,
+    signedIn,
+    isAdmin,
+    initialCredits,
+    onOpenCitation,
+  },
   ref
 ) {
   const router = useRouter();
@@ -244,10 +280,17 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
         authClient.$store.notify("$sessionSignal");
       }
     },
+    onFinish: () => {
+      // Lets ChatHistorySidebar pick up this session's title (derived from
+      // the first question) right away instead of only on the next manual
+      // reload or visibilitychange.
+      window.dispatchEvent(new Event("qanoon:chat-session-updated"));
+    },
   });
 
   const [input, setInput] = useState("");
   const [reactions, setReactions] = useState<Record<number, ReactionType[]>>(initialReactions);
+  const [timestamps, setTimestamps] = useState<Record<string, string>>(initialTimestamps);
   const busy = status === "submitted" || status === "streaming";
   const outOfCredits = !isAdmin && creditsRemaining !== null && creditsRemaining <= 0;
 
@@ -266,7 +309,13 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
   function submit(text: string) {
     const trimmed = text.trim();
     if (!trimmed || busy || outOfCredits) return;
-    sendMessage({ text: trimmed });
+    // Assigned explicitly (rather than the `text:` shorthand) so the id is
+    // known up front and can key this message's send-time timestamp —
+    // useChat's `text:` shorthand rebuilds the message and discards any id
+    // passed alongside it, always generating its own.
+    const id = crypto.randomUUID();
+    setTimestamps((prev) => ({ ...prev, [id]: new Date().toISOString() }));
+    sendMessage({ id, parts: [{ type: "text", text: trimmed }] });
     setInput("");
   }
 
@@ -306,10 +355,16 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
           const reasoningStreaming = reasoningParts.some((p) => p.state === "streaming");
 
           if (message.role === "user") {
+            const timestamp = timestamps[message.id];
             return (
-              <div key={message.id} className="flex justify-end">
-                <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
-                  {text}
+              <div key={message.id} className="space-y-1">
+                {timestamp && (
+                  <p className="text-center text-xs text-muted-foreground">{formatMessageTimestamp(timestamp)}</p>
+                )}
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                    {text}
+                  </div>
                 </div>
               </div>
             );
