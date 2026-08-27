@@ -17,13 +17,27 @@ interface TotalsRow {
 }
 
 export async function getPlatformTotals(): Promise<PlatformTotals> {
+  // Scoped to signed-in users' own activity — chat_sessions.user_id is
+  // nullable for old pre-auth/dev-testing rows (see db/schema-app.sql), and
+  // usage_events also carries ingest-time rows (session_id NULL: embedding/
+  // summary/title costs from the corpus pipeline, not end-user chat). Both
+  // would otherwise inflate these totals with non-user activity.
   const rows = await query<TotalsRow>(
     `SELECT
-       (SELECT count(*) FROM "user")                            AS total_users,
-       (SELECT count(*) FROM chat_sessions)                      AS total_conversations,
-       (SELECT count(*) FROM chat_messages)                      AS total_messages,
-       (SELECT COALESCE(SUM(total_tokens),0) FROM usage_events)  AS total_tokens,
-       (SELECT COALESCE(SUM(cost_usd),0) FROM usage_events)      AS total_cost_usd`
+       (SELECT count(*) FROM "user")                                        AS total_users,
+       (SELECT count(*) FROM chat_sessions WHERE user_id IS NOT NULL)        AS total_conversations,
+       (SELECT count(*)
+          FROM chat_messages cm
+          JOIN chat_sessions cs ON cs.id = cm.session_id
+         WHERE cs.user_id IS NOT NULL)                                      AS total_messages,
+       (SELECT COALESCE(SUM(ue.total_tokens),0)
+          FROM usage_events ue
+          JOIN chat_sessions cs ON cs.id = ue.session_id
+         WHERE cs.user_id IS NOT NULL)                                      AS total_tokens,
+       (SELECT COALESCE(SUM(ue.cost_usd),0)
+          FROM usage_events ue
+          JOIN chat_sessions cs ON cs.id = ue.session_id
+         WHERE cs.user_id IS NOT NULL)                                      AS total_cost_usd`
   );
   const row = rows[0];
   return {

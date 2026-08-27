@@ -51,18 +51,32 @@ function getMessageText(message: UIMessage): string {
     .join("");
 }
 
+class SessionOwnershipError extends Error {}
+
 async function ensureSession(
   sessionId: string,
   anonId: string,
   userId: string,
   scope: { type: ScopeType; slug?: string }
 ): Promise<void> {
+  // A client-supplied sessionId can collide with a row owned by a different
+  // account (browser reused across sign-ups, a stale localStorage/URL id).
+  // Check ownership *before* touching the row at all — merging onto
+  // whatever user_id is already there (the old COALESCE behavior) would
+  // silently attribute this user's new messages/cost to that other account,
+  // and updating the row even just to reject afterward would still bump
+  // someone else's session to the top of their chat history.
+  const existing = await query<{ user_id: string | null }>(`SELECT user_id FROM chat_sessions WHERE id = $1`, [
+    sessionId,
+  ]);
+  if (existing[0]?.user_id && existing[0].user_id !== userId) {
+    throw new SessionOwnershipError();
+  }
+
   await query(
     `INSERT INTO chat_sessions (id, anon_id, user_id, scope_type, scope_id)
      VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (id) DO UPDATE SET
-       updated_at = now(),
-       user_id = COALESCE(chat_sessions.user_id, EXCLUDED.user_id)`,
+     ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
     [sessionId, anonId, userId, scope.type, scope.slug ?? null]
   );
 }
@@ -105,7 +119,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Empty question" }, { status: 400 });
   }
 
-  await ensureSession(sessionId, anonId, session.user.id, scope);
+  try {
+    await ensureSession(sessionId, anonId, session.user.id, scope);
+  } catch (error) {
+    if (error instanceof SessionOwnershipError) {
+      return NextResponse.json({ error: "Session belongs to a different account" }, { status: 403 });
+    }
+    throw error;
+  }
   await insertMessage(sessionId, "user", questionText);
 
   // --- Stored-summary shortcut: no embedding, no retrieval, no LLM call ---

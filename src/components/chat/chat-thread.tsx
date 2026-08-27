@@ -86,14 +86,20 @@ function rowToUIMessage(row: HistoryMessageRow): QanoonUIMessage {
 }
 
 /**
- * Persists one session id per scope (localStorage) so a page refresh resumes
- * the same conversation instead of starting a blank one. A scope change still
- * gets a fresh session — ChatThread is remounted (keyed by scope) by AskApp.
- * A freshly-created id has no history to fetch, so it skips the round trip
- * (and the brief loading placeholder) entirely.
+ * Persists one session id per (user, scope) pair (localStorage) so a page
+ * refresh resumes the same conversation instead of starting a blank one. A
+ * scope change still gets a fresh session — ChatThread is remounted (keyed by
+ * scope) by AskApp. A freshly-created id has no history to fetch, so it skips
+ * the round trip (and the brief loading placeholder) entirely.
+ *
+ * Keyed by userId, not just scope: browsers get reused across accounts (dev
+ * testing, a shared machine, someone signing up after trying the app
+ * anonymously). Without the user in the key, a fresh sign-up would inherit
+ * whatever session id a previous account left behind in this browser and
+ * show that account's chat history.
  */
-function useRestoredSession(scope: ChatScope, initialSessionId?: string) {
-  const storageKey = `qanoon-session:${scope.type}:${scope.slug ?? "all"}`;
+function useRestoredSession(scope: ChatScope, initialSessionId: string | undefined, userId: string | undefined) {
+  const storageKey = `qanoon-session:${userId ?? "anon"}:${scope.type}:${scope.slug ?? "all"}`;
   const [{ id: sessionId, isNew }] = useState(() =>
     initialSessionId ? { id: initialSessionId, isNew: false } : getOrCreateLocalId(storageKey)
   );
@@ -138,7 +144,38 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
   { anonId, scope, initialSessionId, onOpenCitation },
   ref
 ) {
-  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId);
+  // Gate on auth resolving before touching localStorage at all — the restored
+  // session id is keyed by userId (see useRestoredSession), so it must not be
+  // computed with a stale/unknown identity while the session is still pending.
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+
+  if (sessionPending) {
+    return <div className="flex-1" />;
+  }
+
+  return (
+    <ChatThreadRestoring
+      ref={ref}
+      anonId={anonId}
+      scope={scope}
+      initialSessionId={initialSessionId}
+      userId={session?.user.id}
+      signedIn={!!session}
+      onOpenCitation={onOpenCitation}
+    />
+  );
+});
+
+interface ChatThreadRestoringProps extends ChatThreadProps {
+  userId?: string;
+  signedIn: boolean;
+}
+
+const ChatThreadRestoring = forwardRef<ChatThreadHandle, ChatThreadRestoringProps>(function ChatThreadRestoring(
+  { anonId, scope, initialSessionId, userId, signedIn, onOpenCitation },
+  ref
+) {
+  const { sessionId, initialMessages, initialReactions } = useRestoredSession(scope, initialSessionId, userId);
 
   if (initialMessages === null || initialReactions === null) {
     return <div className="flex-1" />;
@@ -152,6 +189,7 @@ export const ChatThread = forwardRef<ChatThreadHandle, ChatThreadProps>(function
       sessionId={sessionId}
       initialMessages={initialMessages}
       initialReactions={initialReactions}
+      signedIn={signedIn}
       onOpenCitation={onOpenCitation}
     />
   );
@@ -161,15 +199,14 @@ interface ChatThreadReadyProps extends ChatThreadProps {
   sessionId: string;
   initialMessages: QanoonUIMessage[];
   initialReactions: Record<number, ReactionType[]>;
+  signedIn: boolean;
 }
 
 const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(function ChatThreadReady(
-  { anonId, scope, sessionId, initialMessages, initialReactions, onOpenCitation },
+  { anonId, scope, sessionId, initialMessages, initialReactions, signedIn, onOpenCitation },
   ref
 ) {
   const router = useRouter();
-  const { data: session, isPending: sessionPending } = authClient.useSession();
-  const signedIn = !sessionPending && !!session;
 
   const [transport] = useState(
     () =>

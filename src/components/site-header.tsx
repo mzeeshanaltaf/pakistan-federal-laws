@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
@@ -15,8 +16,10 @@ import {
 export function SiteHeader() {
   const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 
   async function handleSignOut() {
+    setAccountMenuOpen(false);
     await authClient.signOut();
     router.push("/");
     router.refresh();
@@ -65,7 +68,7 @@ export function SiteHeader() {
           )}
 
           {session && (
-            <Popover>
+            <Popover open={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
               <PopoverTrigger
                 render={
                   <Button variant="ghost" size="icon" aria-label="Account menu" className="ml-1">
@@ -81,6 +84,7 @@ export function SiteHeader() {
                 <div className="my-1 h-px bg-border" />
                 <Link
                   href="/dashboard"
+                  onClick={() => setAccountMenuOpen(false)}
                   className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-muted"
                 >
                   <LayoutDashboard className="size-4" />
@@ -89,6 +93,7 @@ export function SiteHeader() {
                 {session.user.role === "admin" && (
                   <Link
                     href="/admin"
+                    onClick={() => setAccountMenuOpen(false)}
                     className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-muted"
                   >
                     <ShieldCheck className="size-4" />
