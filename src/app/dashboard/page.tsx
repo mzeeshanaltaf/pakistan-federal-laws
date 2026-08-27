@@ -53,6 +53,7 @@ export default async function DashboardPage() {
             <span className="text-sm">Conversations</span>
           </div>
           <p className="mt-2 text-2xl font-semibold tabular-nums">{stats.conversations}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{stats.currentConversations} active now</p>
         </div>
         <div className="rounded-xl border border-border p-5">
           <div className="flex items-center gap-2 text-muted-foreground">

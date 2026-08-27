@@ -62,7 +62,7 @@ async function ensureSession(
   anonId: string,
   userId: string,
   scope: { type: ScopeType; slug?: string }
-): Promise<void> {
+): Promise<boolean> {
   // A client-supplied sessionId can collide with a row owned by a different
   // account (browser reused across sign-ups, a stale localStorage/URL id).
   // Check ownership *before* touching the row at all — merging onto
@@ -76,6 +76,7 @@ async function ensureSession(
   if (existing[0]?.user_id && existing[0].user_id !== userId) {
     throw new SessionOwnershipError();
   }
+  const isNewSession = existing.length === 0;
 
   await query(
     `INSERT INTO chat_sessions (id, anon_id, user_id, scope_type, scope_id)
@@ -83,6 +84,26 @@ async function ensureSession(
      ON CONFLICT (id) DO UPDATE SET updated_at = now()`,
     [sessionId, anonId, userId, scope.type, scope.slug ?? null]
   );
+
+  return isNewSession;
+}
+
+// Lifetime activity counters on "user" — incremented here, never
+// decremented, so the dashboard's all-time totals survive a chat thread
+// being deleted later (which hard-deletes the chat_sessions/chat_messages
+// rows a live count would otherwise depend on).
+async function incrementLifetimeStats(
+  userId: string,
+  opts: { newConversation?: boolean; newQuestion?: boolean; newMessage?: boolean }
+): Promise<void> {
+  const increments = [
+    opts.newConversation && `"lifetimeConversations" = "lifetimeConversations" + 1`,
+    opts.newQuestion && `"lifetimeQuestionsAsked" = "lifetimeQuestionsAsked" + 1`,
+    opts.newMessage && `"lifetimeMessages" = "lifetimeMessages" + 1`,
+  ].filter((clause): clause is string => Boolean(clause));
+  if (increments.length === 0) return;
+
+  await query(`UPDATE "user" SET ${increments.join(", ")} WHERE id = $1`, [userId]);
 }
 
 async function insertMessage(
@@ -136,8 +157,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Empty question" }, { status: 400 });
   }
 
+  let isNewSession: boolean;
   try {
-    await ensureSession(sessionId, anonId, session.user.id, scope);
+    isNewSession = await ensureSession(sessionId, anonId, session.user.id, scope);
   } catch (error) {
     if (error instanceof SessionOwnershipError) {
       return NextResponse.json({ error: "Session belongs to a different account" }, { status: 403 });
@@ -157,6 +179,11 @@ export async function POST(request: NextRequest) {
   }
 
   await insertMessage(sessionId, "user", questionText);
+  await incrementLifetimeStats(session.user.id, {
+    newConversation: isNewSession,
+    newQuestion: true,
+    newMessage: true,
+  });
 
   // --- Stored-summary shortcut: no embedding, no retrieval, no LLM call ---
   if (scope.type === "document" && scope.slug && isSummaryIntent(questionText)) {
@@ -165,6 +192,7 @@ export async function POST(request: NextRequest) {
 
     if (summary) {
       const assistantId = await insertMessage(sessionId, "assistant", summary);
+      await incrementLifetimeStats(session.user.id, { newMessage: true });
 
       const stream = createUIMessageStream<QanoonUIMessage>({
         execute: ({ writer }) => {
@@ -198,6 +226,7 @@ export async function POST(request: NextRequest) {
     operation: "query_embedding",
     inputTokens: embedUsage.tokens,
     sessionId,
+    userId: session.user.id,
   });
 
   const chunks = await hybridSearch(questionText, embedding, scopeFilter);
@@ -208,6 +237,7 @@ export async function POST(request: NextRequest) {
   // chat_messages.id otherwise. A failed generation leaves this row's
   // content empty (orphaned debris, filtered out of history reads).
   const assistantId = await insertMessage(sessionId, "assistant", "", citations);
+  await incrementLifetimeStats(session.user.id, { newMessage: true });
   const modelMessages = await convertToModelMessages(messages.slice(-MAX_CONTEXT_MESSAGES));
 
   const buildChatStream = (serviceTier: "flex" | "auto") =>
@@ -229,6 +259,7 @@ export async function POST(request: NextRequest) {
           operation: "chat",
           sessionId,
           messageId: assistantId,
+          userId: session.user.id,
           inputTokens: usage.inputTokens ?? 0,
           cachedInputTokens: usage.inputTokenDetails?.cacheReadTokens ?? 0,
           outputTokens: usage.outputTokens ?? 0,

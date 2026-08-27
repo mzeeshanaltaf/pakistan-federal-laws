@@ -1,50 +1,49 @@
 import { query } from "@/lib/db";
 
 export interface DashboardStats {
+  /** All-time total, incremented on every new session — survives thread deletion. */
   conversations: number;
+  /** All-time total, incremented on every user message — survives thread deletion. */
   questionsAsked: number;
+  /** All-time total, summed from the usage_events ledger by user_id — survives thread deletion. */
   totalTokens: number;
+  /** Live count of conversations that still exist right now (drops when one is deleted). */
+  currentConversations: number;
 }
 
 interface StatsRow {
-  conversations: string;
-  questions_asked: string;
+  lifetime_conversations: string;
+  lifetime_questions_asked: string;
   total_tokens: string;
+  current_conversations: string;
 }
 
 export async function getDashboardStats(userId: string): Promise<DashboardStats> {
-  // Pre-aggregate chat_messages and usage_events per session *before* joining
-  // to chat_sessions — joining both tables directly (as the plan doc's SQL
-  // literally reads) cross-products every message row against every usage
-  // row for the same session, inflating both questions_asked and
-  // total_tokens by a multiplicative factor once a session has more than one
-  // of each (i.e. almost always). Confirmed via a live test: 3 real
-  // questions across 2 sessions came back as questions_asked=10 with the
-  // naive double-LEFT-JOIN version.
+  // conversations/questionsAsked read the lifetime counters on "user"
+  // (incremented in src/app/api/chat/route.ts, never decremented) rather
+  // than counting chat_sessions/chat_messages rows directly, because
+  // deleting a thread hard-deletes those rows. totalTokens sums
+  // usage_events by user_id directly instead of joining through
+  // chat_sessions, since usage_events.session_id is only nulled (not
+  // cascaded) on thread deletion — going through chat_sessions would lose
+  // the tokens the moment the session disappears. currentConversations is
+  // the one live count here, deliberately not a lifetime total.
   const rows = await query<StatsRow>(
     `SELECT
-       count(*)                            AS conversations,
-       COALESCE(SUM(msg.questions_asked), 0) AS questions_asked,
-       COALESCE(SUM(usage.total_tokens), 0)  AS total_tokens
-     FROM chat_sessions cs
-     LEFT JOIN (
-       SELECT session_id, count(*) FILTER (WHERE role = 'user') AS questions_asked
-       FROM chat_messages
-       GROUP BY session_id
-     ) msg ON msg.session_id = cs.id
-     LEFT JOIN (
-       SELECT session_id, SUM(total_tokens) AS total_tokens
-       FROM usage_events
-       GROUP BY session_id
-     ) usage ON usage.session_id = cs.id
-     WHERE cs.user_id = $1`,
+       u."lifetimeConversations"   AS lifetime_conversations,
+       u."lifetimeQuestionsAsked"  AS lifetime_questions_asked,
+       COALESCE((SELECT SUM(total_tokens) FROM usage_events WHERE user_id = u.id), 0) AS total_tokens,
+       (SELECT count(*) FROM chat_sessions WHERE user_id = u.id)                      AS current_conversations
+     FROM "user" u
+     WHERE u.id = $1`,
     [userId]
   );
   const row = rows[0];
   return {
-    conversations: Number(row?.conversations ?? 0),
-    questionsAsked: Number(row?.questions_asked ?? 0),
+    conversations: Number(row?.lifetime_conversations ?? 0),
+    questionsAsked: Number(row?.lifetime_questions_asked ?? 0),
     totalTokens: Number(row?.total_tokens ?? 0),
+    currentConversations: Number(row?.current_conversations ?? 0),
   };
 }
 

@@ -13,6 +13,7 @@ export interface RecordUsageInput {
   sessionId?: string;
   messageId?: number;
   documentId?: string;
+  userId?: string;
   isEstimated?: boolean;
   metadata?: Record<string, unknown>;
 }
@@ -55,10 +56,10 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
 
   await query(
     `INSERT INTO usage_events
-       (provider, model, operation, session_id, message_id, document_id,
+       (provider, model, operation, session_id, message_id, document_id, user_id,
         input_tokens, cached_input_tokens, output_tokens, reasoning_tokens, total_tokens,
         cost_usd, is_estimated, metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
     [
       input.provider,
       input.model,
@@ -66,6 +67,7 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
       input.sessionId ?? null,
       input.messageId ?? null,
       input.documentId ?? null,
+      input.userId ?? null,
       inputTokens,
       cachedInputTokens,
       outputTokens,

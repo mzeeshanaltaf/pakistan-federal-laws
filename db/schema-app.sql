@@ -30,6 +30,30 @@ CREATE INDEX IF NOT EXISTS chat_sessions_user_id_idx ON pak_laws.chat_sessions (
 -- is meaningless for admin rows.
 ALTER TABLE pak_laws."user" ADD COLUMN IF NOT EXISTS "messageCredits" integer NOT NULL DEFAULT 10;
 
+-- Lifetime activity counters, incremented in src/app/api/chat/route.ts as
+-- conversations/questions happen and never decremented. Deleting a chat
+-- thread hard-deletes its chat_sessions/chat_messages rows (see the DELETE
+-- route), which would otherwise make the dashboard's "Conversations" and
+-- "Questions asked" totals drop after a delete — these columns give the
+-- dashboard an all-time total that survives it. The live, current count of
+-- still-existing conversations is still available separately via
+-- `count(*) FROM chat_sessions WHERE user_id = ...`.
+ALTER TABLE pak_laws."user" ADD COLUMN IF NOT EXISTS "lifetimeConversations" integer NOT NULL DEFAULT 0;
+ALTER TABLE pak_laws."user" ADD COLUMN IF NOT EXISTS "lifetimeQuestionsAsked" integer NOT NULL DEFAULT 0;
+-- Counts both roles (user + assistant), matching the admin dashboard's
+-- existing "messages" convention — distinct from lifetimeQuestionsAsked,
+-- which is user-role only (the user dashboard's convention).
+ALTER TABLE pak_laws."user" ADD COLUMN IF NOT EXISTS "lifetimeMessages" integer NOT NULL DEFAULT 0;
+
+-- Denormalized alongside session_id/message_id (which are ON DELETE SET
+-- NULL, not cascaded) so a deleted chat thread's token/cost history stays
+-- attributable to the user it belongs to — the whole point of usage_events
+-- being a permanent cost ledger (see CLAUDE.md). Populated at insert time in
+-- src/lib/usage.ts; NULL for ingest-pipeline events (summary/ingest_embedding
+-- calls have no end user).
+ALTER TABLE pak_laws.usage_events ADD COLUMN IF NOT EXISTS user_id text REFERENCES pak_laws."user" (id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS usage_events_user_id_idx ON pak_laws.usage_events (user_id);
+
 CREATE TABLE IF NOT EXISTS pak_laws.message_reactions (
     id            bigserial PRIMARY KEY,
     message_id    bigint NOT NULL REFERENCES pak_laws.chat_messages (id) ON DELETE CASCADE,

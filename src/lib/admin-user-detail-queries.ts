@@ -67,33 +67,20 @@ interface UserDetailStatsRow {
 }
 
 export async function getUserDetailStats(userId: string): Promise<UserDetailStats> {
-  // Same pre-aggregate-before-join shape as getPerUserStats (admin-queries.ts)
-  // and getDashboardStats (dashboard-queries.ts) — joining chat_messages and
-  // usage_events directly onto chat_sessions in one SELECT cross-products the
-  // two per session. "messages" counts both roles, matching the admin table's
-  // existing convention (distinct from the user dashboard's user-only count).
+  // Reads the lifetime counters on "user" and sums usage_events by user_id
+  // directly — same rationale as getPlatformTotals/getPerUserStats
+  // (admin-queries.ts): counting/joining chat_sessions or chat_messages
+  // directly would make these totals drop as soon as the user deletes a
+  // chat thread (hard-deleted rows, nulled usage_events.session_id).
+  // "messages" counts both roles, matching the admin table's convention.
   const rows = await query<UserDetailStatsRow>(
     `SELECT
-       COALESCE(convo.conversations, 0)  AS conversations,
-       COALESCE(msg.messages, 0)         AS messages,
-       COALESCE(usage.total_tokens, 0)   AS total_tokens,
-       COALESCE(usage.total_cost_usd, 0) AS total_cost_usd
-     FROM (SELECT 1 AS one) base
-     LEFT JOIN (
-       SELECT count(*) AS conversations FROM chat_sessions WHERE user_id = $1
-     ) convo ON true
-     LEFT JOIN (
-       SELECT count(cm.id) AS messages
-       FROM chat_sessions cs
-       JOIN chat_messages cm ON cm.session_id = cs.id
-       WHERE cs.user_id = $1
-     ) msg ON true
-     LEFT JOIN (
-       SELECT SUM(ue.total_tokens) AS total_tokens, SUM(ue.cost_usd) AS total_cost_usd
-       FROM chat_sessions cs
-       JOIN usage_events ue ON ue.session_id = cs.id
-       WHERE cs.user_id = $1
-     ) usage ON true`,
+       u."lifetimeConversations" AS conversations,
+       u."lifetimeMessages"      AS messages,
+       COALESCE((SELECT SUM(total_tokens) FROM usage_events WHERE user_id = u.id), 0) AS total_tokens,
+       COALESCE((SELECT SUM(cost_usd) FROM usage_events WHERE user_id = u.id), 0)     AS total_cost_usd
+     FROM "user" u
+     WHERE u.id = $1`,
     [userId]
   );
   const row = rows[0];
