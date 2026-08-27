@@ -12,10 +12,11 @@ interface DocRow {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
+  const download = new URL(request.url).searchParams.get("download") === "1";
 
   const docs = await query<DocRow>(`SELECT storage_key, title FROM documents WHERE slug = $1`, [slug]);
   const doc = docs[0];
@@ -25,6 +26,7 @@ export async function GET(
 
   const { body, contentType, contentLength } = await getDocumentStream(doc.storage_key);
   const webStream = Readable.toWeb(body) as ReadableStream;
+  const disposition = download ? "attachment" : "inline";
 
   return new Response(webStream, {
     headers: {
@@ -32,7 +34,7 @@ export async function GET(
       ...(contentLength ? { "Content-Length": String(contentLength) } : {}),
       // Corpus is immutable — safe to cache for a year.
       "Cache-Control": "public, max-age=31536000, immutable",
-      "Content-Disposition": `inline; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(doc.title)}.pdf`,
+      "Content-Disposition": `${disposition}; filename="document.pdf"; filename*=UTF-8''${encodeURIComponent(doc.title)}.pdf`,
     },
   });
 }
