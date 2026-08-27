@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { LayoutDashboard, LogOut, ShieldCheck, User, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -71,8 +71,18 @@ export function SiteHeader() {
             <Popover open={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
               <PopoverTrigger
                 render={
-                  <Button variant="ghost" size="icon" aria-label="Account menu" className="ml-1">
-                    <UserRound className="size-4" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Account menu"
+                    className="ml-1 overflow-hidden rounded-full"
+                  >
+                    {session.user.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- streamed from a private-storage proxy route, not an optimizable remote URL
+                      <img src={session.user.image} alt="" className="size-full object-cover" />
+                    ) : (
+                      <UserRound className="size-4" />
+                    )}
                   </Button>
                 }
               />
@@ -89,6 +99,14 @@ export function SiteHeader() {
                 >
                   <LayoutDashboard className="size-4" />
                   Dashboard
+                </Link>
+                <Link
+                  href="/profile"
+                  onClick={() => setAccountMenuOpen(false)}
+                  className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-sm hover:bg-muted"
+                >
+                  <User className="size-4" />
+                  Profile
                 </Link>
                 {session.user.role === "admin" && (
                   <Link

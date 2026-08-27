@@ -1,4 +1,4 @@
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { Readable } from "node:stream";
 
 // Private object storage (self-hosted MinIO). Every read is server-side — the
@@ -31,4 +31,32 @@ export async function getDocumentStream(storageKey: string): Promise<DocumentStr
     contentType: res.ContentType,
     contentLength: res.ContentLength,
   };
+}
+
+// Profile pictures live in the same bucket under their own prefix, keyed by
+// user id (not a generated filename) — a re-upload simply overwrites the
+// previous picture rather than accumulating orphaned objects.
+function avatarKey(userId: string): string {
+  return `avatars/${userId}`;
+}
+
+export async function putAvatar(userId: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({ Bucket: bucket, Key: avatarKey(userId), Body: body, ContentType: contentType })
+  );
+}
+
+/** Returns null if the user has no uploaded avatar yet. */
+export async function getAvatarStream(userId: string): Promise<DocumentStream | null> {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: avatarKey(userId) }));
+    return {
+      body: res.Body as Readable,
+      contentType: res.ContentType,
+      contentLength: res.ContentLength,
+    };
+  } catch (err) {
+    if ((err as { name?: string }).name === "NoSuchKey") return null;
+    throw err;
+  }
 }
