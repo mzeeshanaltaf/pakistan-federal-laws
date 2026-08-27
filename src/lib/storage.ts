@@ -33,6 +33,28 @@ export async function getDocumentStream(storageKey: string): Promise<DocumentStr
   };
 }
 
+export async function putDocument(storageKey: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(
+    new PutObjectCommand({ Bucket: bucket, Key: storageKey, Body: body, ContentType: contentType })
+  );
+}
+
+// The ingest pipeline needs the whole PDF in memory anyway (pdfjs parses a
+// full buffer, not a stream), so this buffers getDocumentStream's Readable
+// rather than teaching every other caller to.
+export async function getDocumentBuffer(storageKey: string): Promise<Buffer> {
+  const { body } = await getDocumentStream(storageKey);
+  const chunks: Buffer[] = [];
+  for await (const chunk of body) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
+export async function deleteDocument(storageKey: string): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: storageKey }));
+}
+
 // Profile pictures live in the same bucket under their own prefix, keyed by
 // user id (not a generated filename) — a re-upload simply overwrites the
 // previous picture rather than accumulating orphaned objects.

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { CreditCard, MessageSquare, MessagesSquare, Users } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, FileText, MessageSquare, MessagesSquare, Users } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getPerUserStats, getPlatformTotals } from "@/lib/admin-queries";
 import { AdminUserTable } from "@/components/admin/admin-user-table";
+import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
   title: "Admin",
@@ -26,8 +28,16 @@ export default async function AdminPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-14 sm:px-6 sm:py-20">
-      <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
-      <p className="mt-3 text-muted-foreground">Signed in as {session.user.email}.</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+          <p className="mt-3 text-muted-foreground">Signed in as {session.user.email}.</p>
+        </div>
+        <Button render={<Link href="/admin/documents" />} variant="outline" nativeButton={false}>
+          <FileText className="size-4" />
+          Documents
+        </Button>
+      </div>
 
       <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-xl border border-border p-5">
