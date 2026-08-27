@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import type { UserStats } from "@/lib/admin-queries";
 
@@ -22,6 +23,7 @@ function formatCost(value: number): string {
 }
 
 export function AdminUserTable({ users }: { users: UserStats[] }) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<SortKey>("totalCostUsd");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -80,7 +82,11 @@ export function AdminUserTable({ users }: { users: UserStats[] }) {
         </thead>
         <tbody className="divide-y divide-border">
           {sorted.map((user) => (
-            <tr key={user.id}>
+            <tr
+              key={user.id}
+              onClick={() => router.push(`/admin/users/${user.id}`)}
+              className="cursor-pointer hover:bg-muted/40"
+            >
               <td className="px-4 py-3">
                 <div className="font-medium text-foreground">{user.name ?? user.email}</div>
                 {user.name ? <div className="text-xs text-muted-foreground">{user.email}</div> : null}
