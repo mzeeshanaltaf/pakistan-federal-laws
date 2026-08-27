@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/auth/password-input";
 import { AvatarPickerDialog } from "@/components/profile/avatar-picker-dialog";
+import { DeleteAccountDialog } from "@/components/profile/delete-account-dialog";
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -293,6 +294,19 @@ export function ProfileForm({ name, email, image }: ProfileFormProps) {
           </p>
         </div>
       )}
+
+      <div className="rounded-xl border border-destructive/30 p-6 sm:p-8">
+        <h2 className="text-lg font-semibold text-destructive">Danger zone</h2>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Delete account</p>
+            <p className="text-sm text-muted-foreground">
+              Permanently delete your account, chat history, and bookmarks.
+            </p>
+          </div>
+          <DeleteAccountDialog email={email} />
+        </div>
+      </div>
     </div>
   );
 }

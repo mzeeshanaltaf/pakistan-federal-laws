@@ -1,4 +1,4 @@
-import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import type { Readable } from "node:stream";
 
 // Private object storage (self-hosted MinIO). Every read is server-side — the
@@ -59,4 +59,9 @@ export async function getAvatarStream(userId: string): Promise<DocumentStream | 
     if ((err as { name?: string }).name === "NoSuchKey") return null;
     throw err;
   }
+}
+
+/** No-op if the user never uploaded an avatar. */
+export async function deleteAvatar(userId: string): Promise<void> {
+  await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: avatarKey(userId) }));
 }
