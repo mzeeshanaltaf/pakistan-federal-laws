@@ -231,7 +231,18 @@ const ChatThreadReady = forwardRef<ChatThreadHandle, ChatThreadReadyProps>(funct
     messages: initialMessages,
     transport,
     onData: (part) => {
-      if (part.type === "data-credits-remaining") setCreditsRemaining(part.data);
+      if (part.type === "data-credits-remaining") {
+        setCreditsRemaining(part.data);
+        // The chat route decrements messageCredits with a raw SQL UPDATE,
+        // bypassing better-auth's own mutation methods, so its client-side
+        // session cache never learns the count changed on its own — it only
+        // refetches on window focus, a poll interval (unset here), or this
+        // signal. Without this, a stale cached session (e.g. still holding
+        // the original default) keeps resurfacing as the *next* ChatThread
+        // mount's initialCredits every time the user leaves /ask and comes
+        // back, even though this message already spent a credit.
+        authClient.$store.notify("$sessionSignal");
+      }
     },
   });
 
