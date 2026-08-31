@@ -47,28 +47,46 @@ export interface DocumentListItem {
   summaryShort: string | null;
 }
 
-export async function getDocumentsByCategory(categorySlug: string): Promise<DocumentListItem[]> {
-  const rows = await query<{
-    slug: string;
-    title: string;
-    instrument_type: string | null;
-    enacted_year: number | null;
-    summary_short: string | null;
-  }>(
-    `SELECT d.slug, d.title, d.instrument_type, d.enacted_year, d.summary_short
-     FROM documents d
-     JOIN categories c ON c.id = d.category_id
-     WHERE c.slug = $1 AND d.ingest_status = 'summarized'
-     ORDER BY d.title`,
-    [categorySlug]
-  );
-  return rows.map((r) => ({
-    slug: r.slug,
-    title: r.title,
-    instrumentType: r.instrument_type,
-    enactedYear: r.enacted_year,
-    summaryShort: r.summary_short,
-  }));
+export const CATEGORY_PAGE_SIZE = 50;
+
+export async function getDocumentsByCategoryPage(
+  categorySlug: string,
+  page: number
+): Promise<{ documents: DocumentListItem[]; total: number }> {
+  const offset = (page - 1) * CATEGORY_PAGE_SIZE;
+  const [rows, countRows] = await Promise.all([
+    query<{
+      slug: string;
+      title: string;
+      instrument_type: string | null;
+      enacted_year: number | null;
+      summary_short: string | null;
+    }>(
+      `SELECT d.slug, d.title, d.instrument_type, d.enacted_year, d.summary_short
+       FROM documents d
+       JOIN categories c ON c.id = d.category_id
+       WHERE c.slug = $1 AND d.ingest_status = 'summarized'
+       ORDER BY d.title
+       LIMIT $2 OFFSET $3`,
+      [categorySlug, CATEGORY_PAGE_SIZE, offset]
+    ),
+    query<{ count: string }>(
+      `SELECT count(*) FROM documents d
+       JOIN categories c ON c.id = d.category_id
+       WHERE c.slug = $1 AND d.ingest_status = 'summarized'`,
+      [categorySlug]
+    ),
+  ]);
+  return {
+    documents: rows.map((r) => ({
+      slug: r.slug,
+      title: r.title,
+      instrumentType: r.instrument_type,
+      enactedYear: r.enacted_year,
+      summaryShort: r.summary_short,
+    })),
+    total: Number(countRows[0]?.count ?? 0),
+  };
 }
 
 export async function getAllDocumentSlugs(): Promise<string[]> {
@@ -81,6 +99,33 @@ export async function getAllDocumentSlugs(): Promise<string[]> {
 export async function getAllCategorySlugs(): Promise<string[]> {
   const rows = await query<{ slug: string }>(`SELECT slug FROM categories WHERE document_count > 0`);
   return rows.map((r) => r.slug);
+}
+
+export interface SlugWithUpdatedAt {
+  slug: string;
+  updatedAt: Date;
+}
+
+export async function getAllDocumentSlugsWithUpdatedAt(): Promise<SlugWithUpdatedAt[]> {
+  const rows = await query<{ slug: string; updated_at: Date }>(
+    `SELECT slug, updated_at FROM documents WHERE ingest_status = 'summarized'`
+  );
+  return rows.map((r) => ({ slug: r.slug, updatedAt: r.updated_at }));
+}
+
+// categories has no updated_at column of its own, so a category's "last
+// modified" is the most recent update among the documents inside it — falls
+// back to now() for an (unexpected) empty category rather than null, since
+// sitemap lastmod must be a real date.
+export async function getAllCategorySlugsWithUpdatedAt(): Promise<SlugWithUpdatedAt[]> {
+  const rows = await query<{ slug: string; updated_at: Date | null }>(
+    `SELECT c.slug, MAX(d.updated_at) AS updated_at
+     FROM categories c
+     LEFT JOIN documents d ON d.category_id = c.id AND d.ingest_status = 'summarized'
+     WHERE c.document_count > 0
+     GROUP BY c.slug`
+  );
+  return rows.map((r) => ({ slug: r.slug, updatedAt: r.updated_at ?? new Date() }));
 }
 
 export interface DocumentDetail {
@@ -155,6 +200,25 @@ export interface CatalogDocument {
   slug: string;
   title: string;
   categoryId: number | null;
+}
+
+export interface ExampleQuestion {
+  question: string;
+  documentSlug: string;
+  documentTitle: string;
+}
+
+export async function getExampleQuestions(limit = 6): Promise<ExampleQuestion[]> {
+  const rows = await query<{ question: string; slug: string; title: string }>(
+    `SELECT sq.question, d.slug, d.title
+     FROM suggested_questions sq
+     JOIN documents d ON d.id = sq.document_id
+     WHERE sq.scope = 'document'
+     ORDER BY random()
+     LIMIT $1`,
+    [limit]
+  );
+  return rows.map((r) => ({ question: r.question, documentSlug: r.slug, documentTitle: r.title }));
 }
 
 export async function getAllDocumentsForCatalog(): Promise<CatalogDocument[]> {

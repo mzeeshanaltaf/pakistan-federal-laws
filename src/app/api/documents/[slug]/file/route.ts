@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { query } from "@/lib/db";
 import { getDocumentStream } from "@/lib/storage";
+import { checkFileRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // The AWS SDK needs Node APIs — must not run on the Edge runtime.
 export const runtime = "nodejs";
@@ -15,6 +16,14 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
+  // Public and unauthenticated by design (these are public statutes) — this
+  // just guards against one client hammering the proxy (every byte streams
+  // through this Node process), not credential abuse.
+  const { success } = await checkFileRateLimit(getClientIp(request));
+  if (!success) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const { slug } = await params;
   const download = new URL(request.url).searchParams.get("download") === "1";
 

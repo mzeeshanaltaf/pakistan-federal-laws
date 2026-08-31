@@ -1,23 +1,16 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { query } from "@/lib/db";
 import { putDocument } from "@/lib/storage";
 import { getAdminDocuments } from "@/lib/admin-documents-queries";
 import { parseEnactedYear, parseInstrumentType, slugify } from "@/lib/ingest/metadata";
 import { runIngestPipeline } from "@/lib/ingest/pipeline";
+import { requireAdmin } from "@/lib/require-admin";
 
 // pg + the AWS SDK + pdfjs all need Node APIs.
 export const runtime = "nodejs";
 
 const MAX_FILE_BYTES = 60 * 1024 * 1024;
-
-async function requireAdmin(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  if (session.user.role !== "admin") return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  return { session };
-}
 
 export async function GET(request: NextRequest) {
   const { error } = await requireAdmin(request);
@@ -108,7 +101,10 @@ export async function POST(request: NextRequest) {
   // the VPS, not a serverless function that freezes after the response), so
   // the pipeline keeps running after this request returns. The admin UI
   // polls GET /api/admin/documents for status instead of blocking on it.
-  void runIngestPipeline(documentId);
+  // The pipeline catches its own errors internally, but the .catch here
+  // guards against its own failure-path write (setStatus) throwing — an
+  // unhandled rejection here would otherwise crash the whole Node process.
+  void runIngestPipeline(documentId).catch((err) => console.error("[ingest] pipeline crashed", err));
 
   return NextResponse.json({ id: documentId, slug }, { status: 201 });
 }

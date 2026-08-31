@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight } from "lucide-react";
-import { getAllCategorySlugs, getCategoryBySlug, getDocumentsByCategory } from "@/lib/catalog";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  CATEGORY_PAGE_SIZE,
+  getAllCategorySlugs,
+  getCategoryBySlug,
+  getDocumentsByCategoryPage,
+} from "@/lib/catalog";
+import { JsonLd } from "@/components/json-ld";
+import { truncateForSerp } from "@/lib/seo";
 
 export const revalidate = 3600;
 
@@ -13,27 +20,50 @@ export async function generateStaticParams() {
 
 interface CategoryPageProps {
   params: Promise<{ category: string }>;
+  searchParams: Promise<{ page?: string }>;
 }
 
-export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: CategoryPageProps): Promise<Metadata> {
   const { category: slug } = await params;
+  const { page: pageParam } = await searchParams;
   const category = await getCategoryBySlug(slug);
   if (!category) return {};
+  const page = Math.max(1, Number(pageParam) || 1);
   return {
     title: category.name,
-    description: category.blurb ?? `${category.documentCount} federal statutes in ${category.name}.`,
+    description: truncateForSerp(category.blurb ?? `${category.documentCount} federal statutes in ${category.name}.`),
+    // Every page in the sequence self-canonicalizes — page 2+ must never
+    // canonical back to page 1, or its own listing would be dropped from
+    // the index as a "duplicate."
+    alternates: { canonical: page > 1 ? `/browse/${slug}?page=${page}` : `/browse/${slug}` },
   };
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
   const { category: slug } = await params;
+  const { page: pageParam } = await searchParams;
   const category = await getCategoryBySlug(slug);
   if (!category) notFound();
 
-  const documents = await getDocumentsByCategory(slug);
+  const page = Math.max(1, Number(pageParam) || 1);
+  const { documents, total } = await getDocumentsByCategoryPage(slug, page);
+  const totalPages = Math.max(1, Math.ceil(total / CATEGORY_PAGE_SIZE));
+  if (page > totalPages) notFound();
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://qanoon.zeeshanai.cloud";
 
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-14 sm:px-6 sm:py-20">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 1, name: "Browse", item: `${siteUrl}/browse` },
+            { "@type": "ListItem", position: 2, name: category.name, item: `${siteUrl}/browse/${slug}` },
+          ],
+        }}
+      />
       <p className="text-sm text-muted-foreground">
         <Link href="/browse" className="hover:text-foreground">
           Browse
@@ -71,6 +101,36 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           </li>
         ))}
       </ul>
+
+      {totalPages > 1 && (
+        <nav className="mt-10 flex items-center justify-between gap-4 text-sm" aria-label="Pagination">
+          {page > 1 ? (
+            <Link
+              href={page === 2 ? `/browse/${slug}` : `/browse/${slug}?page=${page - 1}`}
+              className="inline-flex items-center gap-1 font-medium text-foreground/80 hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+              Previous
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-muted-foreground">
+            Page {page} of {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link
+              href={`/browse/${slug}?page=${page + 1}`}
+              className="inline-flex items-center gap-1 font-medium text-foreground/80 hover:text-foreground"
+            >
+              Next
+              <ChevronRight className="size-4" />
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
+      )}
     </div>
   );
 }

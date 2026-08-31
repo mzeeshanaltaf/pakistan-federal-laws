@@ -23,6 +23,26 @@ export interface ChunkRecord {
 // single paragraph block can occasionally span most of a page. Falls back to
 // sentence-boundary splitting only for those oversized blocks, mirroring the
 // Python chunker's same-named function.
+// OpenAI's embedding models reject a single input over ~8191 tokens outright
+// (TooManyEmbeddingValuesForCallError/context-length error), which would
+// otherwise fail the whole document's ingest over one paragraph. A limit this
+// far past the target chunk size is only ever reached by a single sentence
+// with no punctuation to split on (SENTENCE_SPLIT_RE finds nothing) — a
+// pathological input, not a normal statute, so a character-ratio hard slice
+// (no clean boundary to prefer) is an acceptable last resort.
+const HARD_SLICE_LIMIT_TOKENS = 6000;
+
+function hardSliceByTokens(text: string, tokens: number, limit: number): string[] {
+  if (tokens <= limit) return [text];
+  const parts = Math.ceil(tokens / limit);
+  const charsPerPart = Math.ceil(text.length / parts);
+  const slices: string[] = [];
+  for (let i = 0; i < text.length; i += charsPerPart) {
+    slices.push(text.slice(i, i + charsPerPart));
+  }
+  return slices;
+}
+
 function splitOversizedParagraph(para: ExtractedParagraph, limit = CHUNK_TARGET_TOKENS): ExtractedParagraph[] {
   if (para.tokens <= limit) return [para];
 
@@ -41,7 +61,14 @@ function splitOversizedParagraph(para: ExtractedParagraph, limit = CHUNK_TARGET_
   }
   if (cur.length) pieces.push(cur.join(" "));
 
-  return pieces.map((p) => ({ page: para.page, text: p, tokens: countTokens(p) }));
+  return pieces.flatMap((p) => {
+    const pTokens = countTokens(p);
+    return hardSliceByTokens(p, pTokens, HARD_SLICE_LIMIT_TOKENS).map((slice) => ({
+      page: para.page,
+      text: slice,
+      tokens: countTokens(slice),
+    }));
+  });
 }
 
 // Never merges across a page gap larger than one page, so a chunk never

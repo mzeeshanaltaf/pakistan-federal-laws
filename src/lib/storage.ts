@@ -78,7 +78,8 @@ export async function getAvatarStream(userId: string): Promise<DocumentStream | 
       contentLength: res.ContentLength,
     };
   } catch (err) {
-    if ((err as { name?: string }).name === "NoSuchKey") return null;
+    const name = (err as { name?: string }).name;
+    if (name === "NoSuchKey" || name === "NotFound") return null;
     throw err;
   }
 }

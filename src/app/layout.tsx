@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SiteHeader } from "@/components/site-header";
+import { JsonLd } from "@/components/json-ld";
 
 const publicSans = Public_Sans({
   variable: "--font-sans",
@@ -21,12 +22,28 @@ export const metadata: Metadata = {
   },
   description:
     "Ask questions about Pakistan's federal statutes in plain language, grounded strictly in the statute text, with citations that open the exact page of the source PDF.",
+  alternates: { canonical: "/" },
 };
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://qanoon.zeeshanai.cloud";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${publicSans.variable} h-full antialiased`} suppressHydrationWarning>
       <body className="flex min-h-full flex-col bg-background text-foreground">
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "Qanoon",
+            url: SITE_URL,
+            potentialAction: {
+              "@type": "SearchAction",
+              target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/ask?q={search_term_string}` },
+              "query-input": "required name=search_term_string",
+            },
+          }}
+        />
         {process.env.NEXT_PUBLIC_UMAMI_SCRIPT_URL && process.env.NEXT_PUBLIC_UMAMI_WEBSITE_ID && (
           <Script
             defer

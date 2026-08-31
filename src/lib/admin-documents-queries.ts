@@ -30,9 +30,11 @@ export async function getAdminDocuments(): Promise<AdminDocumentRow[]> {
   }>(
     `SELECT d.id, d.slug, d.title, d.category_id, c.name AS category_name,
             d.num_pages, d.file_size_bytes, d.ingest_status, d.ingest_error, d.created_at,
-            (SELECT count(*) FROM document_chunks dc WHERE dc.document_id = d.id) AS chunk_count
+            count(dc.id) AS chunk_count
      FROM documents d
      LEFT JOIN categories c ON c.id = d.category_id
+     LEFT JOIN document_chunks dc ON dc.document_id = d.id
+     GROUP BY d.id, c.name
      ORDER BY d.created_at DESC`
   );
 

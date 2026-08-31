@@ -21,6 +21,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
       // The URL is versioned with a `?v=` query param on every upload, so the
       // bytes at any given URL never change — safe to cache indefinitely.
       "Cache-Control": "public, max-age=31536000, immutable",
+      // Dicebear avatars are stored as SVG (a script-execution context if
+      // rendered as a document) — nosniff plus an explicit inline
+      // disposition keeps the browser treating this strictly as an image.
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": "inline",
     },
   });
 }

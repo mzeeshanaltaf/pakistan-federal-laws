@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ChevronDown } from "lucide-react";
 import { getCategories } from "@/lib/catalog";
 import { LiveAnswerDemo } from "@/components/home/live-answer-demo";
+import { JsonLd } from "@/components/json-ld";
 import type { Citation } from "@/lib/rag-prompt";
 
 export const revalidate = 3600;
@@ -91,7 +92,7 @@ const FAQS = [
   },
   {
     q: "Do I need to sign up?",
-    a: "No. Qanoon is fully anonymous — there's no account, login, or email required to ask a question. See the Privacy Policy for how anonymous sessions work.",
+    a: "No — browsing all 525 statutes and their summaries is fully open. Asking Qanoon a question needs a free account, which comes with a starting balance of message credits.",
   },
   {
     q: "What happens if my question isn't covered by the statutes?",
@@ -99,7 +100,7 @@ const FAQS = [
   },
   {
     q: "Is Qanoon free?",
-    a: "Yes. It's a public civic tool — no cost, no paywall, no ads.",
+    a: "Yes — no cost, no paywall, no ads. Signing up gives you a starting balance of free message credits to ask questions with.",
   },
   {
     q: "I found a wrong citation or a bug — how do I report it?",
@@ -112,6 +113,17 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-1 flex-col">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: FAQS.map((faq) => ({
+            "@type": "Question",
+            name: faq.q,
+            acceptedAnswer: { "@type": "Answer", text: faq.a },
+          })),
+        }}
+      />
       <section className="mx-auto w-full max-w-5xl px-4 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
         <div className="mb-4 flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element -- static local SVG, no optimization needed */}

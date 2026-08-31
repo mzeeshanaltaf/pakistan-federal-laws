@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { isSafeAvatarUrl } from "@/lib/avatar-url";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/auth/password-input";
@@ -152,7 +153,7 @@ export function ProfileForm({ name, email, image }: ProfileFormProps) {
 
         <div className="mt-5 flex items-center gap-4">
           <div className="relative size-16 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-            {avatarUrl ? (
+            {isSafeAvatarUrl(avatarUrl) ? (
               // eslint-disable-next-line @next/next/no-img-element -- streamed from a private-storage proxy route, not an optimizable remote URL
               <img src={avatarUrl} alt="" className="size-full object-cover" />
             ) : (

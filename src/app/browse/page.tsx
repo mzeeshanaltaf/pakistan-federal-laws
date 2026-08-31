@@ -7,6 +7,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Browse",
   description: "Browse Pakistan's 525 federal statutes across 21 categories.",
+  alternates: { canonical: "/browse" },
 };
 
 export default async function BrowsePage() {

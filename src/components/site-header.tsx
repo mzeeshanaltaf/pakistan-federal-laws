@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LayoutDashboard, LogOut, ShieldCheck, User, UserRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { isSafeAvatarUrl } from "@/lib/avatar-url";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -77,7 +78,7 @@ export function SiteHeader() {
                     aria-label="Account menu"
                     className="ml-1 overflow-hidden rounded-full"
                   >
-                    {session.user.image ? (
+                    {isSafeAvatarUrl(session.user.image) ? (
                       // eslint-disable-next-line @next/next/no-img-element -- streamed from a private-storage proxy route, not an optimizable remote URL
                       <img src={session.user.image} alt="" className="size-full object-cover" />
                     ) : (

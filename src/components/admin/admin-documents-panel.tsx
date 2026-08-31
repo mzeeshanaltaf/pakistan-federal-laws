@@ -406,7 +406,7 @@ export function AdminDocumentsPanel({ categories, initialDocuments }: AdminDocum
                 variant="outline"
                 size="sm"
                 disabled={currentPage <= 1}
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => setPage(currentPage - 1)}
               >
                 Previous
               </Button>
@@ -418,7 +418,7 @@ export function AdminDocumentsPanel({ categories, initialDocuments }: AdminDocum
                 variant="outline"
                 size="sm"
                 disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => setPage(currentPage + 1)}
               >
                 Next
               </Button>

@@ -4,6 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy",
   description: "What Qanoon collects, why, and who it's shared with.",
+  alternates: { canonical: "/privacy" },
 };
 
 const LAST_UPDATED = "24 August 2026";

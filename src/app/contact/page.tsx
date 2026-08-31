@@ -4,6 +4,7 @@ import { ContactForm } from "@/components/contact-form";
 export const metadata: Metadata = {
   title: "Contact",
   description: "Send feedback, report a bug, or ask a question about Qanoon.",
+  alternates: { canonical: "/contact" },
 };
 
 // Short error codes set by the API route's redirect (?error=...) mapped to

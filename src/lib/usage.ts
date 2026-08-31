@@ -44,6 +44,7 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
   const totalTokens = inputTokens + outputTokens + reasoningTokens;
 
   let costUsd: number | null = null;
+  let isEstimated = input.isEstimated ?? false;
   const rate = pricing[0];
   if (rate) {
     const billableInputTokens = Math.max(inputTokens - cachedInputTokens, 0);
@@ -52,6 +53,12 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
       (billableInputTokens * Number(rate.input_per_mtok)) / 1_000_000 +
       (cachedInputTokens * cachedRate) / 1_000_000 +
       ((outputTokens + reasoningTokens) * Number(rate.output_per_mtok)) / 1_000_000;
+  } else {
+    // A pricing miss would otherwise write cost_usd = NULL with no signal,
+    // silently understating every cost total that sums this column until
+    // someone notices the dashboard total stopped growing.
+    console.error(`[usage] no model_pricing row for ${input.provider}/${input.model} — cost_usd will be null`);
+    isEstimated = true;
   }
 
   await query(
@@ -74,7 +81,7 @@ export async function recordUsage(input: RecordUsageInput): Promise<void> {
       reasoningTokens,
       totalTokens,
       costUsd,
-      input.isEstimated ?? false,
+      isEstimated,
       input.metadata ? JSON.stringify(input.metadata) : null,
     ]
   );

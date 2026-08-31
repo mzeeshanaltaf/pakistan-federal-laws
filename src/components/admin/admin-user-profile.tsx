@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShieldBan, ShieldCheck } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { isSafeAvatarUrl } from "@/lib/avatar-url";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -83,7 +84,7 @@ export function AdminUserProfile({ user, viewerIsSelf }: { user: AdminUserDetail
   return (
     <div className="max-w-xl space-y-6">
       <div className="flex items-center gap-4">
-        {user.image ? (
+        {isSafeAvatarUrl(user.image) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={user.image} alt="" className="size-14 rounded-full object-cover" />
         ) : (

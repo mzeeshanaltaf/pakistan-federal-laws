@@ -1,4 +1,4 @@
-import { APICallError, generateObject } from "ai";
+import { APICallError, NoObjectGeneratedError, generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { recordUsage } from "@/lib/usage";
@@ -89,8 +89,28 @@ ${extractText}`;
   try {
     result = await run("flex");
   } catch (error) {
-    if (!isFlexCapacityError(error)) throw error;
-    result = await run("auto");
+    if (isFlexCapacityError(error)) {
+      result = await run("auto");
+    } else if (NoObjectGeneratedError.isInstance(error) && error.usage) {
+      // The call was billed even though the model's output failed schema
+      // validation — log it (estimated: cost was incurred, but this path
+      // never reaches the recordUsage call below) before surfacing the
+      // failure so it isn't a silent gap in the ledger.
+      await recordUsage({
+        provider: "openai",
+        model: CHAT_MODEL,
+        operation: "summary",
+        documentId,
+        inputTokens: error.usage.inputTokens ?? 0,
+        outputTokens: error.usage.outputTokens ?? 0,
+        reasoningTokens: error.usage.outputTokenDetails?.reasoningTokens ?? 0,
+        isEstimated: true,
+        metadata: { failureReason: "no_object_generated" },
+      });
+      throw error;
+    } else {
+      throw error;
+    }
   }
 
   await recordUsage({

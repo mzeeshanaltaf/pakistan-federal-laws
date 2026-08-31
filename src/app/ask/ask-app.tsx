@@ -20,9 +20,10 @@ const DEFAULT_SCOPE: ChatScope = { type: "all", label: "All laws" };
 interface AskAppProps {
   initialScope?: ChatScope;
   initialSessionId?: string;
+  initialQuestion?: string;
 }
 
-export function AskApp({ initialScope, initialSessionId }: AskAppProps) {
+export function AskApp({ initialScope, initialSessionId, initialQuestion }: AskAppProps) {
   const [anonId] = useState(() => getOrCreateAnonId());
   const [scope, setScope] = useState<ChatScope>(initialScope ?? DEFAULT_SCOPE);
   const [catalog, setCatalog] = useState<CatalogResponse>({ categories: [], documents: [] });
@@ -39,6 +40,14 @@ export function AskApp({ initialScope, initialSessionId }: AskAppProps) {
       .then((res) => res.json())
       .then((data: CatalogResponse) => setCatalog(data))
       .catch(() => setCatalog({ categories: [], documents: [] }));
+  }, []);
+
+  // Fires the WebSite/SearchAction schema's ?q= param (or any deep link
+  // that wants to land with a question pre-asked) — once per mount only,
+  // same as SuggestedQuestions' onSelect below.
+  useEffect(() => {
+    if (initialQuestion) chatRef.current?.ask(initialQuestion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount, not on every initialQuestion identity change
   }, []);
 
   return (

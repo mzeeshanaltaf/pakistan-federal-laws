@@ -3,6 +3,7 @@ import { SignUpForm } from "@/components/auth/sign-up-form";
 
 export const metadata: Metadata = {
   title: "Sign up",
+  robots: { index: false, follow: false },
 };
 
 export default function SignUpPage() {

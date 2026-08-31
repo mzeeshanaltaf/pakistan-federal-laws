@@ -4,8 +4,15 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { getAllDocumentSlugs, getDocumentBySlug, getDocumentQuestions } from "@/lib/catalog";
 import { PdfViewer } from "@/components/pdf-viewer-loader";
+import { JsonLd } from "@/components/json-ld";
+import { truncateForSerp } from "@/lib/seo";
 
 export const revalidate = 3600;
+
+// " · Qanoon" suffix template is 9 chars — past ~55 the statute's own
+// qualifying clause (not the brand suffix) is what gets truncated in the
+// SERP, so drop the suffix for long titles instead.
+const TITLE_TEMPLATE_BUDGET = 55;
 
 export async function generateStaticParams() {
   const slugs = await getAllDocumentSlugs();
@@ -20,9 +27,13 @@ export async function generateMetadata({ params }: LawPageProps): Promise<Metada
   const { slug } = await params;
   const doc = await getDocumentBySlug(slug);
   if (!doc) return {};
+  const description = truncateForSerp(
+    doc.summaryShort ?? `Read a plain-language summary of the ${doc.title}, with citations to the source text.`
+  );
   return {
-    title: doc.title,
-    description: doc.summaryShort ?? `Read a plain-language summary of the ${doc.title}, with citations to the source text.`,
+    title: doc.title.length > TITLE_TEMPLATE_BUDGET ? { absolute: doc.title } : doc.title,
+    description,
+    alternates: { canonical: `/law/${slug}` },
   };
 }
 
@@ -35,8 +46,43 @@ export default async function LawPage({ params }: LawPageProps) {
   const fileUrl = `/api/documents/${slug}/file`;
   const askHref = `/ask?scope=document&slug=${encodeURIComponent(slug)}&label=${encodeURIComponent(doc.title)}`;
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://qanoon.zeeshanai.cloud";
+  const breadcrumbItems = [
+    { "@type": "ListItem", position: 1, name: "Browse", item: `${siteUrl}/browse` },
+    ...(doc.categorySlug && doc.categoryName
+      ? [{ "@type": "ListItem", position: 2, name: doc.categoryName, item: `${siteUrl}/browse/${doc.categorySlug}` }]
+      : []),
+    {
+      "@type": "ListItem",
+      position: doc.categorySlug ? 3 : 2,
+      name: doc.title,
+      item: `${siteUrl}/law/${slug}`,
+    },
+  ];
+
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-14 sm:px-6 sm:py-20">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Legislation",
+          name: doc.title,
+          legislationIdentifier: slug,
+          ...(doc.enactedYear && { legislationDate: String(doc.enactedYear) }),
+          legislationJurisdiction: { "@type": "Country", name: "Pakistan" },
+          ...(doc.instrumentType && { legislationType: doc.instrumentType }),
+          ...(doc.summary && { description: doc.summary }),
+          ...(doc.sourceUrl && { url: doc.sourceUrl }),
+          isPartOf: { "@type": "WebSite", name: "Qanoon", url: siteUrl },
+        }}
+      />
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: breadcrumbItems,
+        }}
+      />
       <p className="text-sm text-muted-foreground">
         <Link href="/browse" className="hover:text-foreground">
           Browse
