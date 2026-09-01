@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AskAppLoader } from "./ask-app-loader";
-import { getExampleQuestions } from "@/lib/catalog";
 import type { ChatScope } from "@/lib/chat-types";
 
 export const metadata: Metadata = {
@@ -24,8 +22,6 @@ export default async function AskPage({ searchParams }: AskPageProps) {
     initialScope = { type: "category", slug: params.slug, label: params.label ?? params.slug };
   }
 
-  const exampleQuestions = await getExampleQuestions();
-
   return (
     <div className="flex flex-1 flex-col">
       {/*
@@ -43,20 +39,6 @@ export default async function AskPage({ searchParams }: AskPageProps) {
           Ask about any of the 525 federal laws below, in plain language. Every answer is grounded strictly in
           the statute text and cited to the exact page you can check yourself.
         </p>
-        {exampleQuestions.length > 0 && (
-          <ul className="mt-4 flex flex-wrap gap-2">
-            {exampleQuestions.map((eq) => (
-              <li key={`${eq.documentSlug}:${eq.question}`}>
-                <Link
-                  href={`/law/${eq.documentSlug}`}
-                  className="inline-block rounded-full border border-border bg-card px-3 py-1.5 text-xs text-foreground/80 transition-colors hover:border-primary/40 hover:text-foreground"
-                >
-                  {eq.question}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
 
       <AskAppLoader initialScope={initialScope} initialSessionId={params.sessionId} initialQuestion={params.q} />

@@ -202,25 +202,6 @@ export interface CatalogDocument {
   categoryId: number | null;
 }
 
-export interface ExampleQuestion {
-  question: string;
-  documentSlug: string;
-  documentTitle: string;
-}
-
-export async function getExampleQuestions(limit = 6): Promise<ExampleQuestion[]> {
-  const rows = await query<{ question: string; slug: string; title: string }>(
-    `SELECT sq.question, d.slug, d.title
-     FROM suggested_questions sq
-     JOIN documents d ON d.id = sq.document_id
-     WHERE sq.scope = 'document'
-     ORDER BY random()
-     LIMIT $1`,
-    [limit]
-  );
-  return rows.map((r) => ({ question: r.question, documentSlug: r.slug, documentTitle: r.title }));
-}
-
 export async function getAllDocumentsForCatalog(): Promise<CatalogDocument[]> {
   const rows = await query<{ slug: string; title: string; category_id: number | null }>(
     `SELECT slug, title, category_id FROM documents WHERE ingest_status = 'summarized' ORDER BY title`
